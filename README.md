@@ -101,11 +101,21 @@ Then, in another terminal:
 ANTHROPIC_BASE_URL=http://127.0.0.1:4000 \
 ANTHROPIC_AUTH_TOKEN=sk-codextender-local \
 ANTHROPIC_MODEL=sol \
+CODEXTENDER_ACTIVE=1 \
+CODEXTENDER_MODEL=sol \
 claude
 ```
 
 Claude Code will now route requests through your Codex-plan subscription's
 model for that alias.
+
+The last two vars (`CODEXTENDER_ACTIVE`/`CODEXTENDER_MODEL`) aren't read by
+codextender itself — they're a marker for anything downstream that needs to
+tell "this session's main model is actually a Codex model, even though the
+driving binary is `claude`" (e.g. picking an independent external-review
+roster instead of one that would review a GPT-authored diff with another
+GPT-family model). Harmless to omit if nothing downstream checks for them;
+set `CODEXTENDER_MODEL` to whichever alias you passed as `ANTHROPIC_MODEL`.
 
 ## Autostart (Windows)
 
@@ -135,7 +145,7 @@ function (shells out to `codex app-server` for a fresh OAuth token), but
 earlier revision of this README wrongly implied one existed. `cli.py` reads
 `~/.codex/auth.json` once at startup and keeps that access token for the
 life of the process. Practical effect: a long-running proxy (in particular
-one started via the Windows autostart script below and left running for
+one started via the Windows autostart script above and left running for
 hours) **will start failing every request once the token expires**, with no
 automatic recovery — restart the process to pick up a fresh token in the
 meantime. Wiring the existing refresh function into an actual reauth path is
