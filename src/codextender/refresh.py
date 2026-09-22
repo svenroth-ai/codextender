@@ -6,7 +6,8 @@ never touches it again on its own — a proxy left running past the access
 token's lifetime (short-lived; the ``refresh_token`` alongside it in
 ``auth.json`` is the actually-long-lived credential) would silently start
 failing every request. A proxy started once via the Windows autostart script
-and left running for hours is exactly that case.
+and left running for hours — including through a laptop suspend/resume — is
+exactly that case.
 
 This module starts a daemon background thread that periodically calls
 ``auth.refresh_via_app_server()`` and pushes the new access token into the
@@ -26,26 +27,36 @@ Codex — see the codextender repo's test history for both runs): (1)
 ``delete_deployment`` + ``add_deployment`` (the more defensive-looking
 option, since ``add_deployment``'s own docstring says it "initialize[s the]
 client"), and (2) this plain mutation. **Both produced the new token on the
-very next outbound request** — grep of the installed litellm==1.102.0
-source found nothing that actually populates a per-deployment client cache
-keyed in a way a plain mutation could go stale against for this provider
-path (``_get_client``'s ``{model_id}_client``/``{model_id}_async_client``
-cache keys are read but never written anywhere in this version — dead code
-for a plain OpenAI-compatible custom-endpoint deployment). Plain mutation
-was kept over delete+add because it touches strictly less of Router's
-internal bookkeeping (pattern routers, budget limiters, deployment
+very next outbound request** — an independent read of the installed
+litellm==1.102.0 source (the version this project pins) confirmed why: each
+deployment's api_key is read fresh out of ``litellm_params`` per request
+(``Router._acompletion``/``_ageneric_api_call_with_fallbacks_helper`` both
+do a shallow ``.copy()`` of ``litellm_params`` at call time), and the one
+client-side cache that *is* keyed per-request (``in_memory_llm_clients_cache``)
+keys on a hash of the api_key itself, so a rotated key naturally misses that
+cache and gets a fresh client rather than reusing a stale one. Plain
+mutation was kept over delete+add because it touches strictly less of
+Router's internal bookkeeping (pattern routers, budget limiters, deployment
 indices) that delete/re-add walks through for no benefit here.
 
-Fixed-interval polling, not expiry-aware: ``auth.json`` isn't known to
-expose a parsed expiry timestamp (not verified — nobody has read the raw
-file's full shape for this project), so this refreshes on a conservative
-fixed schedule rather than guessing at when to refresh from an expiry field
-that may not exist. 20 minutes is comfortably under typical OAuth
-access-token lifetimes (commonly ~1h) without refreshing so often it's
-wasteful. Not implemented: reactively refreshing on an actual 401 from
-Codex's endpoint, which would recover faster from an unexpectedly short
-token lifetime — left as a future improvement, since it needs hooking into
-LiteLLM's response path rather than living here as a plain timer.
+Scheduling: this does NOT sleep a flat interval and call it done — a fixed
+``time.sleep(20 * 60)`` would (a) not notice a laptop waking from a longer
+suspend until up to 20 more minutes had passed with a dead token, and (b)
+have to guess blindly at how long a token stays valid. Instead this polls
+every ``_POLL_SECONDS`` and refreshes when either: the plain interval has
+elapsed; the wall clock jumped far ahead of monotonic time since the last
+poll (a suspend/resume); or the access token's own JWT ``exp`` claim (when
+decodable — see ``auth.decode_jwt_exp``) is within ``_EXP_REFRESH_MARGIN_SECONDS``
+of expiring. The fixed interval remains the fallback whenever ``exp`` isn't
+decodable, since ``auth.json``'s full shape hasn't been independently
+verified to always carry a usable expiry this project can read without
+guessing at its format.
+
+Not implemented: reactively refreshing on an actual 401 from Codex's
+endpoint, which would recover faster than any polling scheme from a token
+that turned out to be invalidated early (e.g. a manual `codex logout`
+elsewhere) — left as a future improvement, since it needs hooking into
+LiteLLM's response path rather than living here as a background poller.
 """
 
 from __future__ import annotations
@@ -53,12 +64,36 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from dataclasses import dataclass
 
-from .auth import CodexAuthError, refresh_via_app_server
+from .auth import CodexAuthError, decode_jwt_exp, refresh_via_app_server
 
 logger = logging.getLogger("codextender.refresh")
 
 DEFAULT_REFRESH_INTERVAL_SECONDS = 20 * 60
+
+# How often the loop wakes up to check whether a refresh is due. Small
+# relative to the refresh interval so a suspend/resume or an approaching
+# JWT expiry is noticed promptly rather than up to a full interval late.
+_POLL_SECONDS = 30
+
+# Refresh this long before a decoded JWT `exp`, not exactly at it, so a
+# request arriving right at the boundary doesn't race an expiring token.
+_EXP_REFRESH_MARGIN_SECONDS = 5 * 60
+
+# A wall-clock gap this much larger than the monotonic gap between two polls
+# means the machine was suspended in between (monotonic time doesn't advance
+# while suspended; wall clock does) — treated as "assume the token may now
+# be stale, refresh immediately" rather than waiting out the rest of the
+# normal interval.
+_SUSPEND_GAP_THRESHOLD_SECONDS = _POLL_SECONDS * 4
+
+
+@dataclass
+class _RefreshState:
+    last_token: str | None = None
+    last_refresh_monotonic: float | None = None
+    next_deadline_monotonic: float | None = None  # from a decoded JWT `exp`, if any
 
 
 def start_background_refresh(
@@ -69,9 +104,9 @@ def start_background_refresh(
     blocking LiteLLM proxy server call, not after — it needs to run
     concurrently with request serving, not sequentially before/after it.
 
-    Safe to start before the LiteLLM router exists yet: the loop sleeps a
-    full interval before its first refresh attempt, which is comfortably
-    longer than proxy startup takes.
+    Safe to start before the LiteLLM router exists yet: the loop's first
+    refresh attempt is gated on ``interval_seconds`` having elapsed, which is
+    comfortably longer than proxy startup takes.
     """
     thread = threading.Thread(
         target=_refresh_loop,
@@ -84,34 +119,61 @@ def start_background_refresh(
 
 
 def _refresh_loop(interval_seconds: float) -> None:
+    state = _RefreshState(last_refresh_monotonic=time.monotonic())
+    last_wall = time.time()
+    last_mono = time.monotonic()
+
     while True:
-        time.sleep(interval_seconds)
-        try:
-            _refresh_once()
-        except Exception:
-            # Never let a refresh-cycle exception kill this daemon thread —
-            # the existing (possibly still-valid) token keeps working in the
-            # meantime, and the next cycle tries again.
-            logger.exception("codextender: token refresh cycle failed — will retry next interval")
+        time.sleep(_POLL_SECONDS)
+        now_wall = time.time()
+        now_mono = time.monotonic()
+        wall_elapsed = now_wall - last_wall
+        mono_elapsed = now_mono - last_mono
+        suspended = (wall_elapsed - mono_elapsed) > _SUSPEND_GAP_THRESHOLD_SECONDS
+        last_wall, last_mono = now_wall, now_mono
 
-
-def _refresh_once() -> None:
-    try:
-        creds = refresh_via_app_server()
-    except CodexAuthError as exc:
-        logger.warning(
-            "codextender: token refresh failed (%s) — keeping the existing token until next cycle",
-            exc,
+        assert state.last_refresh_monotonic is not None
+        interval_due = (now_mono - state.last_refresh_monotonic) >= interval_seconds
+        deadline_due = (
+            state.next_deadline_monotonic is not None
+            and now_mono >= state.next_deadline_monotonic - _EXP_REFRESH_MARGIN_SECONDS
         )
+
+        if not (interval_due or deadline_due or suspended):
+            continue
+
+        try:
+            _refresh_once(state)
+        except (CodexAuthError, OSError, ValueError) as exc:
+            # Expected operational failures (codex not on PATH, app-server
+            # unreachable/misbehaving, malformed JSON) — worth a warning,
+            # not a full traceback every cycle.
+            logger.warning("token refresh failed (%s) — will retry", exc)
+        except Exception:
+            # Anything else is unexpected and worth the full traceback.
+            logger.exception("token refresh cycle raised an unexpected error — will retry")
+        finally:
+            state.last_refresh_monotonic = time.monotonic()
+
+
+def _refresh_once(state: _RefreshState) -> None:
+    creds = refresh_via_app_server()
+
+    exp = decode_jwt_exp(creds.access_token)
+    state.next_deadline_monotonic = time.monotonic() + (exp - time.time()) if exp is not None else None
+
+    if creds.access_token == state.last_token:
+        logger.info("checked Codex OAuth token — unchanged, still valid")
         return
+    state.last_token = creds.access_token
 
     updated = _push_token_into_live_router(creds.access_token)
     if updated:
-        logger.info("codextender: refreshed Codex OAuth token, updated %d live deployment(s)", updated)
+        logger.info("refreshed Codex OAuth token, updated %d live deployment(s)", updated)
     else:
         logger.warning(
-            "codextender: refreshed the token but the live LiteLLM router isn't ready yet "
-            "(or has no deployments) — will retry next cycle"
+            "refreshed the token but the live LiteLLM router isn't ready yet "
+            "(or has no deployments) — will retry next check"
         )
 
 

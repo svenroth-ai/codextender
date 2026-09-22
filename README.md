@@ -140,20 +140,32 @@ agent should register on your behalf.
 Early / personal-use quality, not a hardened production proxy.
 
 **Live token refresh is now wired in.** A background thread (started
-automatically — see `--no-token-refresh` to disable it) calls
-`auth.refresh_via_app_server()` every 20 minutes and pushes the fresh
-access token straight into the running proxy's live LiteLLM router, so a
-proxy started once (e.g. via the Windows autostart script above) keeps
-working past the original token's expiry with no restart. Verified
-end-to-end against a real `litellm.Router` (a local test HTTP server
+automatically — see `--no-token-refresh` to disable it) checks every 30s
+and calls `auth.refresh_via_app_server()` when the fixed ~20-minute
+interval is up, a decoded JWT expiry is approaching, or the machine looks
+like it just woke from suspend — then pushes the fresh access token
+straight into the running proxy's live LiteLLM router. A proxy started once
+(e.g. via the Windows autostart script above) keeps working past the
+original token's expiry with no restart. The token-push mechanism (mutating
+a live LiteLLM deployment's `api_key` in place) is verified end-to-end
+against a real `litellm.Router`, both empirically (a local test HTTP server
 recording the actual `Authorization` header LiteLLM sends before/after a
-refresh cycle — not run against real Codex credentials); see
-`src/codextender/refresh.py`'s module docstring for the two designs tried
-and why the simpler one was kept. Not yet implemented: reactively
-refreshing on an actual 401 from Codex (would recover faster from an
-unexpectedly short token lifetime than the fixed 20-minute poll) — the
-periodic refresh should already keep a token well within typical OAuth
-access-token lifetimes.
+refresh) and by reading the installed litellm==1.102.0 source to confirm no
+stale per-deployment client cache survives a key rotation — see
+`src/codextender/refresh.py`'s module docstring. **Not verified against a
+real `codex app-server` process** — the JSON-RPC method/param shape was
+reconstructed from another project's source, not this project's own
+testing (see `auth.py`'s module docstring); `resolve_codex_binary()` does
+correctly resolve `codex` on a Node-managed Windows PATH (a real bug: the
+first cut of this feature called `Popen(["codex", ...])` directly, which
+fails outright on Windows since `codex` there is a `.cmd` shim with no
+`.exe` sibling and `CreateProcess` doesn't resolve those — fixed via
+`shutil.which`), but the actual refresh round-trip through `codex
+app-server` itself is still unverified live. If it fails, codextender logs
+a warning and keeps using the existing token rather than crashing. Not yet
+implemented: reactively refreshing on an actual 401 from Codex (would
+recover faster from an unexpectedly short or externally-invalidated token
+than polling does).
 
 **Not implemented, and not needed**: routing Claude tier names
 (`opus`/`sonnet`/etc.) through this same proxy to real Anthropic, so a

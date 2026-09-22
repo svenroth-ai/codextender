@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 from . import patch
-from .auth import CodexAuthError, load_credentials
+from .auth import CodexAuthError, load_credentials, resolve_codex_binary
 from .config import CODEX_RESPONSES_API_BASE, render_config_yaml
 from .refresh import DEFAULT_REFRESH_INTERVAL_SECONDS, start_background_refresh
 
@@ -47,10 +47,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--no-token-refresh",
         action="store_true",
-        help="Disable the periodic background OAuth-token refresh. Off by "
-        "default (refresh is on) since a long-running proxy — e.g. via the "
-        "Windows autostart script — would otherwise start failing every "
-        "request once the token baked in at startup expires.",
+        help="Background OAuth-token refresh is ON by default (a long-running "
+        "proxy — e.g. via the Windows autostart script — would otherwise "
+        "start failing every request once the token baked in at startup "
+        "expires). Pass this flag to turn it off.",
     )
     args = parser.parse_args(argv)
 
@@ -86,11 +86,22 @@ def main(argv: list[str] | None = None) -> int:
         )
 
         if not args.no_token_refresh:
-            start_background_refresh(interval_seconds=DEFAULT_REFRESH_INTERVAL_SECONDS)
-            logger.info(
-                "codextender: background token refresh enabled (every %d min)",
-                DEFAULT_REFRESH_INTERVAL_SECONDS // 60,
-            )
+            if resolve_codex_binary() is None:
+                logger.error(
+                    "`codex` was not found on PATH — background token refresh "
+                    "disabled. A long-running proxy will need a restart once "
+                    "its token expires. Fix PATH and restart codextender to "
+                    "enable it, or pass --no-token-refresh to silence this."
+                )
+            else:
+                start_background_refresh(interval_seconds=DEFAULT_REFRESH_INTERVAL_SECONDS)
+                logger.info(
+                    "background token refresh enabled (checks every %d s, "
+                    "refreshes roughly every %d min or on an approaching "
+                    "token expiry)",
+                    30,
+                    DEFAULT_REFRESH_INTERVAL_SECONDS // 60,
+                )
 
         # Imported here, after patch.apply(), so the patched class is what
         # actually gets used when the proxy app is constructed.

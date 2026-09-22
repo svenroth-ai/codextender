@@ -19,11 +19,15 @@ version differs.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import os
 import queue
+import shutil
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -88,6 +92,43 @@ def load_credentials() -> CodexCredentials:
     )
 
 
+def decode_jwt_exp(access_token: str) -> float | None:
+    """Best-effort read of a JWT's `exp` claim (Unix timestamp), without
+    verifying its signature.
+
+    This is only ever used to schedule *this process's own* refresh checks —
+    never for an authorization decision — so signature verification would be
+    pointless work: a forged `exp` could at worst make codextender refresh
+    too early or too late, not grant access to anything. Returns None for
+    any malformed/non-JWT input rather than raising, since callers treat a
+    missing expiry as "fall back to fixed-interval refresh," not an error.
+    """
+    try:
+        payload_b64 = access_token.split(".")[1]
+        padding = "=" * (-len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + padding))
+        exp = payload.get("exp")
+        return float(exp) if exp is not None else None
+    except (IndexError, ValueError, TypeError, binascii.Error):
+        return None
+
+
+def resolve_codex_binary() -> str | None:
+    """Resolves the real `codex` binary's full path via PATH lookup.
+
+    Deliberately not just ``["codex", ...]`` passed straight to ``Popen``:
+    on Windows, `codex` on a Node-managed PATH is typically a `.cmd` shim
+    with no `.exe` sibling, and Windows `CreateProcess` (what `Popen` calls
+    without `shell=True`) only auto-appends `.exe` to an extensionless name
+    — it does not resolve `.cmd`/`.bat` the way `cmd.exe` or `shutil.which`
+    do, so `Popen(["codex", ...])` raises `FileNotFoundError` even though
+    `codex` works fine when typed at a prompt. `shutil.which` performs the
+    same PATHEXT-aware resolution a shell does and returns a path `Popen`
+    can launch directly.
+    """
+    return shutil.which("codex")
+
+
 def refresh_via_app_server(timeout_seconds: float = 20.0) -> CodexCredentials:
     """Ask the real `codex` binary to refresh its own stored token, then
     re-read auth.json.
@@ -97,19 +138,32 @@ def refresh_via_app_server(timeout_seconds: float = 20.0) -> CodexCredentials:
     operator to run `codex login` again, rather than guessing at a different
     JSON-RPC shape blind.
     """
+    codex_path = resolve_codex_binary()
+    if codex_path is None:
+        raise CodexAuthError(
+            "`codex` was not found on PATH — cannot refresh the OAuth token. "
+            "Install/PATH the Codex CLI, or run `codex login` manually and "
+            "restart codextender."
+        )
+
     proc = subprocess.Popen(
-        ["codex", "app-server", "-c", 'cli_auth_credentials_store="file"'],
+        [codex_path, "app-server", "-c", 'cli_auth_credentials_store="file"'],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        # Never PIPE stderr without draining it: an app-server that writes
+        # more than one pipe buffer's worth of diagnostics to stderr would
+        # otherwise block on that write forever, and since nothing here
+        # reads stderr on the happy path, every future refresh cycle would
+        # hang at the same point. Nothing here needs stderr's contents.
+        stderr=subprocess.DEVNULL,
         text=True,
         bufsize=1,
     )
     try:
-        _send_jsonrpc(proc, "initialize", {})
-        _read_jsonrpc_response(proc, timeout_seconds)
-        _send_jsonrpc(proc, "account/read", {"refreshToken": True})
-        _read_jsonrpc_response(proc, timeout_seconds)
+        _send_jsonrpc(proc, 1, "initialize", {})
+        _read_matching_response(proc, 1, timeout_seconds)
+        _send_jsonrpc(proc, 2, "account/read", {"refreshToken": True})
+        _read_matching_response(proc, 2, timeout_seconds)
     finally:
         proc.terminate()
         try:
@@ -120,11 +174,40 @@ def refresh_via_app_server(timeout_seconds: float = 20.0) -> CodexCredentials:
     return load_credentials()
 
 
-def _send_jsonrpc(proc: subprocess.Popen, method: str, params: dict) -> None:
-    assert proc.stdin is not None
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+def _send_jsonrpc(proc: subprocess.Popen, request_id: int, method: str, params: dict) -> None:
+    if proc.stdin is None:
+        raise RuntimeError("codex app-server subprocess has no stdin pipe")
+    payload = {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
     proc.stdin.write(json.dumps(payload) + "\n")
     proc.stdin.flush()
+
+
+def _read_matching_response(proc: subprocess.Popen, expected_id: int, timeout_seconds: float) -> dict:
+    """Reads JSON-RPC lines until one whose ``id`` matches ``expected_id``,
+    within a single overall time budget (not one budget per line).
+
+    LSP-derived JSON-RPC servers (this protocol's family) routinely emit
+    unsolicited notifications between a request and its response; reading
+    exactly one line per request — as an earlier version of this function
+    did — would silently pair a stray notification with the wrong request
+    and leave the real response unread, corrupting the whole handshake.
+    Also raises CodexAuthError on an explicit ``{"error": ...}`` reply,
+    rather than treating any well-formed JSON line as success.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CodexAuthError(
+                f"codex app-server did not respond to id={expected_id} within "
+                f"{timeout_seconds}s (only unrelated/no messages seen)."
+            )
+        message = _read_jsonrpc_response(proc, remaining)
+        if message.get("id") != expected_id:
+            continue  # an unrelated notification or stale message — keep reading
+        if "error" in message:
+            raise CodexAuthError(f"codex app-server returned an error for id={expected_id}: {message['error']}")
+        return message
 
 
 def _read_jsonrpc_response(proc: subprocess.Popen, timeout_seconds: float) -> dict:
@@ -136,10 +219,14 @@ def _read_jsonrpc_response(proc: subprocess.Popen, timeout_seconds: float) -> di
     ``select()`` on pipes there), so this reads on a daemon helper thread
     and joins it with a timeout instead. On timeout, the helper thread stays
     blocked in ``readline()`` until the caller's ``finally: proc.terminate()``
-    kills the process — that closes the pipe and unblocks it, so nothing
-    leaks past a single failed refresh cycle.
+    kills the process — that closes the pipe and unblocks it in the common
+    case. Note this guarantee is *not* airtight: ``proc.terminate()`` on
+    Windows only signals this one process, not any child it may have spawned
+    that inherited the stdout handle, so a misbehaving app-server could still
+    leak a blocked reader thread in that (unverified as possible) edge case.
     """
-    assert proc.stdout is not None
+    if proc.stdout is None:
+        raise RuntimeError("codex app-server subprocess has no stdout pipe")
     stdout = proc.stdout  # captured as a plain local so the type-narrowing
     # above actually holds inside the nested closure below (pyright can't
     # see through `proc.stdout` re-accessed via a closure otherwise).
@@ -164,6 +251,5 @@ def _read_jsonrpc_response(proc: subprocess.Popen, timeout_seconds: float) -> di
         ) from exc
 
     if not line:
-        stderr = proc.stderr.read() if proc.stderr else ""
-        raise CodexAuthError(f"codex app-server closed without responding. stderr: {stderr[:2000]}")
+        raise CodexAuthError("codex app-server closed its stdout without responding.")
     return json.loads(line)
