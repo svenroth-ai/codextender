@@ -127,20 +127,30 @@ agent should register on your behalf.
 
 ## Status
 
-Early / personal-use quality. The `--refresh` token-refresh path (shelling
-out to `codex app-server` for a fresh OAuth token) is implemented but not
-yet exercised against every Codex CLI version. Treat this as a working proof
-of concept, not a hardened production proxy.
+Early / personal-use quality, not a hardened production proxy.
 
-**Not implemented**: routing Claude tier names (`opus`/`sonnet`/etc.) through
-this same proxy to real Anthropic, so a proxied session's *subagent* calls
-would keep hitting real Claude while the main loop uses a Codex model. Once
-`ANTHROPIC_BASE_URL` is overridden, Claude Code most likely stops using its
-subscription-linked OAuth and would need a plain Anthropic API key instead —
-which would mean paid per-token billing for that leg, defeating the point.
-Left out rather than silently wired to do that; see
-`Spec/codextender-integration.md` in the `shipwright` monorepo for the open
-question.
+**No live token refresh.** `auth.py` has a `refresh_via_app_server()`
+function (shells out to `codex app-server` for a fresh OAuth token), but
+**it's dead code — nothing calls it.** The CLI has no `--refresh` flag; an
+earlier revision of this README wrongly implied one existed. `cli.py` reads
+`~/.codex/auth.json` once at startup and keeps that access token for the
+life of the process. Practical effect: a long-running proxy (in particular
+one started via the Windows autostart script below and left running for
+hours) **will start failing every request once the token expires**, with no
+automatic recovery — restart the process to pick up a fresh token in the
+meantime. Wiring the existing refresh function into an actual reauth path is
+open, tracked in `Spec/codextender-integration.md` (`shipwright` monorepo).
+
+**Not implemented, and not needed**: routing Claude tier names
+(`opus`/`sonnet`/etc.) through this same proxy to real Anthropic, so a
+proxied session's review *subagents* could stay on real Claude while the
+main loop uses a Codex model. Turns out unnecessary — Shipwright's own
+`"inherit"` model-tier value already gets this for free (a subagent spawned
+with no explicit model override just rides whatever backend the parent
+session is already using), no proxy changes required. Also would have been
+broken as originally conceived here: once `ANTHROPIC_BASE_URL` is
+overridden, Claude Code most likely stops using its subscription-linked
+OAuth and would need a plain, paid, per-token Anthropic API key instead.
 
 ## License
 
