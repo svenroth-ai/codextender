@@ -32,16 +32,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument(
         "--model",
-        default="gpt-6-sol",
-        help="Codex model slug to expose (default: gpt-6-sol). "
-        "No catalog is maintained here on purpose — see README for why.",
-    )
-    parser.add_argument(
-        "--alias",
-        default="sol",
-        help="Model name Claude Code / your client will call this as (default: sol).",
+        action="append",
+        dest="models",
+        metavar="SLUG[:ALIAS]",
+        help="Codex model slug to expose, optionally with :alias (the name "
+        "Claude Code calls it as via ANTHROPIC_MODEL). Repeatable — pass "
+        "multiple times to serve several models from one running proxy, "
+        "e.g. --model gpt-6-sol:sol --model gpt-6-astra:astra. Alias "
+        "defaults to the slug itself when omitted. Default if unset: "
+        "gpt-6-sol:sol. No catalog is maintained here on purpose — see "
+        "README for why.",
     )
     args = parser.parse_args(argv)
+
+    model_pairs = _parse_model_args(args.models or ["gpt-6-sol:sol"])
 
     if not patch.apply():
         logger.error("Refusing to start unpatched — tool-use loops would silently break.")
@@ -54,8 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     config_yaml = render_config_yaml(
-        alias=args.alias,
-        model=args.model,
+        models=model_pairs,
         api_base=CODEX_RESPONSES_API_BASE,
         access_token=creds.access_token,
         account_id=creds.account_id,
@@ -65,10 +68,11 @@ def main(argv: list[str] | None = None) -> int:
         config_path = Path(tmp_dir) / "config.yaml"
         config_path.write_text(config_yaml, encoding="utf-8")
 
-        logger.info("Starting proxy on http://127.0.0.1:%d (model alias: %s)", args.port, args.alias)
+        aliases = ", ".join(alias for alias, _ in model_pairs)
+        logger.info("Starting proxy on http://127.0.0.1:%d (model aliases: %s)", args.port, aliases)
         logger.info(
             "Point Claude Code at it with: ANTHROPIC_BASE_URL=http://127.0.0.1:%d "
-            "ANTHROPIC_AUTH_TOKEN=<see README> claude",
+            "ANTHROPIC_AUTH_TOKEN=<see README> ANTHROPIC_MODEL=<alias> claude",
             args.port,
         )
 
@@ -82,6 +86,17 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     return 0
+
+
+def _parse_model_args(raw: list[str]) -> list[tuple[str, str]]:
+    """``["gpt-6-sol:sol", "gpt-6-astra"]`` -> ``[("sol","gpt-6-sol"),
+    ("gpt-6-astra","gpt-6-astra")]`` — alias defaults to the slug itself.
+    """
+    pairs: list[tuple[str, str]] = []
+    for entry in raw:
+        slug, _, alias = entry.partition(":")
+        pairs.append((alias or slug, slug))
+    return pairs
 
 
 if __name__ == "__main__":

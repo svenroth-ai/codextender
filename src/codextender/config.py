@@ -13,6 +13,23 @@ see README.md for the walkthrough. In particular:
   both rather than letting every request 400.
 - `store: false` and `stream: true` are both hard requirements of this
   specific endpoint, not just recommended defaults.
+
+Multi-model note: a single running proxy can expose more than one Codex
+model alias at once (e.g. `sol` and `astra` simultaneously) — each
+`--model slug[:alias]` on the CLI becomes its own `model_list` entry here,
+all sharing the same Codex auth/headers/endpoint quirks. A Claude Code
+session picks which one it wants per-launch via `ANTHROPIC_MODEL=<alias>`;
+the proxy itself doesn't need restarting to switch between them.
+
+NOT implemented here (see README "Status" / Spec/codextender-integration.md
+"Open questions"): passing Claude tier names (opus/sonnet/haiku/fable)
+through to the real Anthropic API from this same proxy. Once
+ANTHROPIC_BASE_URL is overridden, Claude Code most likely stops using its
+subscription-linked OAuth and would need a plain ANTHROPIC_AUTH_TOKEN
+instead — routing tier calls onward would probably mean a real,
+per-token-billed Anthropic API key, which defeats the point for anything
+billed against the Max subscription. Left out rather than silently wired to
+do that.
 """
 
 from __future__ import annotations
@@ -31,12 +48,14 @@ PROXY_MASTER_KEY = "sk-codextender-local"
 
 def render_config_yaml(
     *,
-    alias: str,
-    model: str,
+    models: list[tuple[str, str]],
     api_base: str,
     access_token: str,
     account_id: str | None,
 ) -> str:
+    """``models`` is a list of ``(alias, model_slug)`` pairs — one
+    ``model_list`` entry each, all sharing the same Codex credentials/quirks.
+    """
     extra_headers = {"originator": "codextender"}
     if account_id:
         extra_headers["chatgpt-account-id"] = account_id
@@ -55,6 +74,7 @@ def render_config_yaml(
                     "additional_drop_params": ["max_output_tokens", "max_tokens", "user"],
                 },
             }
+            for alias, model in models
         ],
         "general_settings": {"master_key": PROXY_MASTER_KEY},
     }
