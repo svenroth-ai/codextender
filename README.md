@@ -139,17 +139,21 @@ agent should register on your behalf.
 
 Early / personal-use quality, not a hardened production proxy.
 
-**No live token refresh.** `auth.py` has a `refresh_via_app_server()`
-function (shells out to `codex app-server` for a fresh OAuth token), but
-**it's dead code — nothing calls it.** The CLI has no `--refresh` flag; an
-earlier revision of this README wrongly implied one existed. `cli.py` reads
-`~/.codex/auth.json` once at startup and keeps that access token for the
-life of the process. Practical effect: a long-running proxy (in particular
-one started via the Windows autostart script above and left running for
-hours) **will start failing every request once the token expires**, with no
-automatic recovery — restart the process to pick up a fresh token in the
-meantime. Wiring the existing refresh function into an actual reauth path is
-open, tracked in `Spec/codextender-integration.md` (`shipwright` monorepo).
+**Live token refresh is now wired in.** A background thread (started
+automatically — see `--no-token-refresh` to disable it) calls
+`auth.refresh_via_app_server()` every 20 minutes and pushes the fresh
+access token straight into the running proxy's live LiteLLM router, so a
+proxy started once (e.g. via the Windows autostart script above) keeps
+working past the original token's expiry with no restart. Verified
+end-to-end against a real `litellm.Router` (a local test HTTP server
+recording the actual `Authorization` header LiteLLM sends before/after a
+refresh cycle — not run against real Codex credentials); see
+`src/codextender/refresh.py`'s module docstring for the two designs tried
+and why the simpler one was kept. Not yet implemented: reactively
+refreshing on an actual 401 from Codex (would recover faster from an
+unexpectedly short token lifetime than the fixed 20-minute poll) — the
+periodic refresh should already keep a token well within typical OAuth
+access-token lifetimes.
 
 **Not implemented, and not needed**: routing Claude tier names
 (`opus`/`sonnet`/etc.) through this same proxy to real Anthropic, so a

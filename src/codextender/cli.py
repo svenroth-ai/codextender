@@ -19,6 +19,7 @@ from pathlib import Path
 from . import patch
 from .auth import CodexAuthError, load_credentials
 from .config import CODEX_RESPONSES_API_BASE, render_config_yaml
+from .refresh import DEFAULT_REFRESH_INTERVAL_SECONDS, start_background_refresh
 
 logger = logging.getLogger("codextender")
 
@@ -42,6 +43,14 @@ def main(argv: list[str] | None = None) -> int:
         "defaults to the slug itself when omitted. Default if unset: "
         "gpt-6-sol:sol. No catalog is maintained here on purpose — see "
         "README for why.",
+    )
+    parser.add_argument(
+        "--no-token-refresh",
+        action="store_true",
+        help="Disable the periodic background OAuth-token refresh. Off by "
+        "default (refresh is on) since a long-running proxy — e.g. via the "
+        "Windows autostart script — would otherwise start failing every "
+        "request once the token baked in at startup expires.",
     )
     args = parser.parse_args(argv)
 
@@ -75,6 +84,13 @@ def main(argv: list[str] | None = None) -> int:
             "ANTHROPIC_AUTH_TOKEN=<see README> ANTHROPIC_MODEL=<alias> claude",
             args.port,
         )
+
+        if not args.no_token_refresh:
+            start_background_refresh(interval_seconds=DEFAULT_REFRESH_INTERVAL_SECONDS)
+            logger.info(
+                "codextender: background token refresh enabled (every %d min)",
+                DEFAULT_REFRESH_INTERVAL_SECONDS // 60,
+            )
 
         # Imported here, after patch.apply(), so the patched class is what
         # actually gets used when the proxy app is constructed.

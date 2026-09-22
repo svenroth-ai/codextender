@@ -21,7 +21,9 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import subprocess
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -126,8 +128,41 @@ def _send_jsonrpc(proc: subprocess.Popen, method: str, params: dict) -> None:
 
 
 def _read_jsonrpc_response(proc: subprocess.Popen, timeout_seconds: float) -> dict:
+    """Reads one line with a REAL timeout.
+
+    ``proc.stdout.readline()`` alone can block forever if ``codex
+    app-server`` never responds — there is no portable way to put a
+    read-with-timeout directly on a subprocess pipe on Windows (no
+    ``select()`` on pipes there), so this reads on a daemon helper thread
+    and joins it with a timeout instead. On timeout, the helper thread stays
+    blocked in ``readline()`` until the caller's ``finally: proc.terminate()``
+    kills the process — that closes the pipe and unblocks it, so nothing
+    leaks past a single failed refresh cycle.
+    """
     assert proc.stdout is not None
-    line = proc.stdout.readline()
+    stdout = proc.stdout  # captured as a plain local so the type-narrowing
+    # above actually holds inside the nested closure below (pyright can't
+    # see through `proc.stdout` re-accessed via a closure otherwise).
+    result: queue.Queue[str] = queue.Queue(maxsize=1)
+
+    def _reader() -> None:
+        try:
+            result.put(stdout.readline())
+        except (OSError, ValueError):
+            # A closed/broken pipe (e.g. the process died mid-read) must
+            # still unblock the caller's queue.get() rather than leave it
+            # waiting the full timeout for nothing.
+            result.put("")
+
+    threading.Thread(target=_reader, daemon=True).start()
+    try:
+        line = result.get(timeout=timeout_seconds)
+    except queue.Empty as exc:
+        raise CodexAuthError(
+            f"codex app-server did not respond within {timeout_seconds}s "
+            "(no JSON-RPC response on stdout)."
+        ) from exc
+
     if not line:
         stderr = proc.stderr.read() if proc.stderr else ""
         raise CodexAuthError(f"codex app-server closed without responding. stderr: {stderr[:2000]}")
