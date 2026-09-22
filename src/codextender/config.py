@@ -8,8 +8,9 @@ see README.md for the walkthrough. In particular:
   api.openai.com/v1 — that host gets a hard 400 "not supported when using
   Codex with a ChatGPT account" even with a valid, working token).
 - The endpoint rejects `max_output_tokens` (which Claude Code's `max_tokens`
-  translates to) outright — additional_drop_params silently strips it rather
-  than letting every request 400.
+  translates to) and `user` (a safety-identifier field LiteLLM passes
+  through by default) outright — additional_drop_params silently strips
+  both rather than letting every request 400.
 - `store: false` and `stream: true` are both hard requirements of this
   specific endpoint, not just recommended defaults.
 """
@@ -51,7 +52,7 @@ def render_config_yaml(
                     "extra_headers": extra_headers,
                     "extra_body": {"store": False},
                     "drop_params": True,
-                    "additional_drop_params": ["max_output_tokens", "max_tokens"],
+                    "additional_drop_params": ["max_output_tokens", "max_tokens", "user"],
                 },
             }
         ],
