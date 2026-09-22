@@ -1,0 +1,23 @@
+[project]
+name = "codextender"
+version = "0.1.0"
+description = "Run Claude Code on your OpenAI/ChatGPT Codex-plan subscription models, inside Claude Code's own native session — no separate CLI harness required."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    # Pinned exact version: this package monkeypatches an internal LiteLLM
+    # class (AnthropicResponsesStreamWrapper) to fix a stop_reason gap that
+    # only shows up against Codex's non-standard Responses API dialect.
+    # A LiteLLM upgrade could silently change or remove that class — see
+    # src/codextender/patch.py for the guarded-import fallback behavior.
+    "litellm[proxy]==1.102.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+codextender = "codextender.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
