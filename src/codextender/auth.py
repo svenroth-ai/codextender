@@ -9,12 +9,17 @@ store and the refresh implementation of a trusted first-party binary, don't
 rebuild either.
 
 NOTE: the refresh path (refresh_via_app_server) talks to `codex app-server`
-over JSON-RPC. The exact request/response shape here was reconstructed from
-reading another project's source, not independently verified against a live
-`codex app-server` process by this package's author. Treat it as a
-best-effort first draft — verify against your installed Codex CLI version
-before relying on it, and expect to adjust method/param names if your
-version differs.
+over JSON-RPC. The request/response shape was originally reconstructed from
+reading another project's source, not independently verified — that first
+draft was wrong (a real app-server rejected the bare `initialize` call:
+missing `clientInfo`, fixed below), confirming the "expect to adjust"
+warning was warranted. Partially live-verified now (the `initialize`
+handshake gets past that specific rejection), but the full round-trip
+through `account/read` and back to a genuinely refreshed token has not yet
+been confirmed end-to-end against a real app-server process. Treat it as
+still best-effort — if your installed Codex CLI version rejects something
+else, expect a similarly concrete `{"code": ..., "message": ...}` error
+naming exactly what's wrong, the same way `clientInfo` was found.
 """
 
 from __future__ import annotations
@@ -160,7 +165,22 @@ def refresh_via_app_server(timeout_seconds: float = 20.0) -> CodexCredentials:
         bufsize=1,
     )
     try:
-        _send_jsonrpc(proc, 1, "initialize", {})
+        # `clientInfo` is REQUIRED — confirmed live, 2026-09-23: an earlier
+        # version sent {} here and got a real, concrete rejection from a
+        # real codex app-server process: {"code": -32600, "message":
+        # "Invalid request: missing field `clientInfo`"}. The exact shape
+        # (name/version, not e.g. a nested object) is not independently
+        # confirmed beyond "this satisfies the missing-field check" — if a
+        # future codex CLI version wants more (protocolVersion,
+        # capabilities, etc., as MCP's initialize does), expect another
+        # concrete rejection naming the next missing field, the same way
+        # this one was found.
+        _send_jsonrpc(
+            proc,
+            1,
+            "initialize",
+            {"clientInfo": {"name": "codextender", "version": "0.1.0"}},
+        )
         _read_matching_response(proc, 1, timeout_seconds)
         _send_jsonrpc(proc, 2, "account/read", {"refreshToken": True})
         _read_matching_response(proc, 2, timeout_seconds)
