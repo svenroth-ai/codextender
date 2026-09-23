@@ -26,7 +26,31 @@ logger = logging.getLogger("codextender")
 DEFAULT_PORT = 4000
 
 
+def _force_utf8_streams() -> None:
+    """Windows defaults stdout/stderr to the system ANSI codepage (e.g.
+    cp1252), not UTF-8 — this bites hardest when output is redirected to a
+    file/pipe (no console to fall back on), which is exactly the autostart
+    and `Start-Process -RedirectStandardOutput` cases this tool is meant to
+    support. LiteLLM's own startup banner uses box-drawing characters that
+    cp1252 can't encode at all, crashing the whole proxy's startup with an
+    unhandled UnicodeEncodeError before it ever binds the port — not a
+    cosmetic issue, a hard failure to start. Reconfiguring here, as early as
+    possible, fixes it for anything this process prints afterward,
+    including LiteLLM's own internals since the proxy runs in this same
+    process (see module docstring).
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = getattr(stream, "encoding", None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if encoding is not None and encoding.lower() not in ("utf-8", "utf8") and callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass  # best-effort — an exotic stream type just keeps its own encoding
+
+
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_streams()
     logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 
     parser = argparse.ArgumentParser(prog="codextender")
