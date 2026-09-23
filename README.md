@@ -117,6 +117,22 @@ roster instead of one that would review a GPT-authored diff with another
 GPT-family model). Harmless to omit if nothing downstream checks for them;
 set `CODEXTENDER_MODEL` to whichever alias you passed as `ANTHROPIC_MODEL`.
 
+### For external tooling (e.g. the Shipwright WebUI integration)
+
+The proxy is a stock LiteLLM proxy, so it comes with a couple of endpoints
+beyond the Anthropic-Messages translation that's the whole point of this
+project — useful for anything that wants to check the proxy is alive or
+list what models it's currently serving, without invoking `codex` itself:
+
+- `GET /health/liveliness` — no auth needed, returns a plain `"I'm alive!"`
+  200. Use this to check the proxy is up before pointing something at it.
+- `GET /v1/models` — **needs** `Authorization: Bearer sk-codextender-local`
+  (the same value you pass as `ANTHROPIC_AUTH_TOKEN` above); without it,
+  LiteLLM returns a `500` here, not a clean `401` — easy to misdiagnose as
+  "the proxy is broken" if you forget the header. With the header, returns
+  the standard OpenAI list shape, `id` being the alias:
+  `{"data":[{"id":"sol","object":"model",...}],"object":"list"}`.
+
 ## Autostart (Windows)
 
 ```powershell
