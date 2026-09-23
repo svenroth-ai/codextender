@@ -9,17 +9,17 @@ store and the refresh implementation of a trusted first-party binary, don't
 rebuild either.
 
 NOTE: the refresh path (refresh_via_app_server) talks to `codex app-server`
-over JSON-RPC. The request/response shape was originally reconstructed from
-reading another project's source, not independently verified — that first
-draft was wrong (a real app-server rejected the bare `initialize` call:
-missing `clientInfo`, fixed below), confirming the "expect to adjust"
-warning was warranted. Partially live-verified now (the `initialize`
-handshake gets past that specific rejection), but the full round-trip
-through `account/read` and back to a genuinely refreshed token has not yet
-been confirmed end-to-end against a real app-server process. Treat it as
-still best-effort — if your installed Codex CLI version rejects something
-else, expect a similarly concrete `{"code": ..., "message": ...}` error
-naming exactly what's wrong, the same way `clientInfo` was found.
+over JSON-RPC. **Verified end-to-end live, 2026-09-23** (operator's own
+real Codex CLI + real account, via codextender's own background refresh
+loop — not run by this package's own tooling, which never touches real
+credentials): the full round-trip — `initialize`, `account/read`, re-read
+`auth.json`, push the new token into the live LiteLLM router — completed
+successfully, logged as `refreshed Codex OAuth token, updated 1 live
+deployment(s)`. Got there in two iterations, both driven by concrete
+errors from the real process rather than guesswork: the request/response
+shape was originally reconstructed from reading another project's source,
+and the first live attempt was rejected outright (`missing field
+'clientInfo'`) — fixed, then confirmed working on the very next run.
 """
 
 from __future__ import annotations

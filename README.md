@@ -168,20 +168,21 @@ against a real `litellm.Router`, both empirically (a local test HTTP server
 recording the actual `Authorization` header LiteLLM sends before/after a
 refresh) and by reading the installed litellm==1.102.0 source to confirm no
 stale per-deployment client cache survives a key rotation — see
-`src/codextender/refresh.py`'s module docstring. **Not verified against a
-real `codex app-server` process** — the JSON-RPC method/param shape was
-reconstructed from another project's source, not this project's own
-testing (see `auth.py`'s module docstring); `resolve_codex_binary()` does
-correctly resolve `codex` on a Node-managed Windows PATH (a real bug: the
-first cut of this feature called `Popen(["codex", ...])` directly, which
-fails outright on Windows since `codex` there is a `.cmd` shim with no
-`.exe` sibling and `CreateProcess` doesn't resolve those — fixed via
-`shutil.which`), but the actual refresh round-trip through `codex
-app-server` itself is still unverified live. If it fails, codextender logs
-a warning and keeps using the existing token rather than crashing. Not yet
-implemented: reactively refreshing on an actual 401 from Codex (would
-recover faster from an unexpectedly short or externally-invalidated token
-than polling does).
+`src/codextender/refresh.py`'s module docstring. **Verified end-to-end
+against a real `codex app-server` process, 2026-09-23** — the JSON-RPC
+handshake's first live attempt was rejected outright (`missing field
+'clientInfo'`, the method/param shape had been reconstructed from another
+project's source and was wrong); fixed, then confirmed working on the very
+next run, logged as `refreshed Codex OAuth token, updated N live
+deployment(s)`. `resolve_codex_binary()` correctly resolves `codex` on a
+Node-managed Windows PATH along the way (a real bug: the first cut of this
+feature called `Popen(["codex", ...])` directly, which fails outright on
+Windows since `codex` there is a `.cmd` shim with no `.exe` sibling and
+`CreateProcess` doesn't resolve those — fixed via `shutil.which`). If a
+refresh cycle fails, codextender logs a warning and keeps using the
+existing token rather than crashing. Not yet implemented: reactively
+refreshing on an actual 401 from Codex (would recover faster from an
+unexpectedly short or externally-invalidated token than polling does).
 
 **Not implemented, and not needed**: routing Claude tier names
 (`opus`/`sonnet`/etc.) through this same proxy to real Anthropic, so a
