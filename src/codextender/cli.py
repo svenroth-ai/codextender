@@ -52,6 +52,16 @@ def main(argv: list[str] | None = None) -> int:
         "start failing every request once the token baked in at startup "
         "expires). Pass this flag to turn it off.",
     )
+    parser.add_argument(
+        "--token-refresh-interval",
+        type=int,
+        default=DEFAULT_REFRESH_INTERVAL_SECONDS,
+        metavar="SECONDS",
+        help="Override the token-refresh interval (default: "
+        f"{DEFAULT_REFRESH_INTERVAL_SECONDS}s / 20 min). Mainly for testing "
+        "the refresh cycle without waiting the full default interval — e.g. "
+        "--token-refresh-interval 60 to see it fire within roughly a minute.",
+    )
     args = parser.parse_args(argv)
 
     model_pairs = _parse_model_args(args.models or ["gpt-6-sol:sol"])
@@ -94,13 +104,12 @@ def main(argv: list[str] | None = None) -> int:
                     "enable it, or pass --no-token-refresh to silence this."
                 )
             else:
-                start_background_refresh(interval_seconds=DEFAULT_REFRESH_INTERVAL_SECONDS)
+                start_background_refresh(interval_seconds=args.token_refresh_interval)
                 logger.info(
-                    "background token refresh enabled (checks every %d s, "
-                    "refreshes roughly every %d min or on an approaching "
-                    "token expiry)",
-                    30,
-                    DEFAULT_REFRESH_INTERVAL_SECONDS // 60,
+                    "background token refresh enabled (checks every 30s, "
+                    "refreshes roughly every %ds or on an approaching token "
+                    "expiry)",
+                    args.token_refresh_interval,
                 )
 
         # Imported here, after patch.apply(), so the patched class is what
