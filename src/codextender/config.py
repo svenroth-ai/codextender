@@ -12,7 +12,26 @@ see README.md for the walkthrough. In particular:
   through by default) outright — additional_drop_params silently strips
   both rather than letting every request 400.
 - `store: false` and `stream: true` are both hard requirements of this
-  specific endpoint, not just recommended defaults.
+  specific endpoint, not just recommended defaults. `stream` is forced via
+  `extra_body` rather than left to whatever the incoming client request
+  asked for: Claude Code's own auto-mode classifier requests (the
+  self-issued safety check it falls back to whenever server-side checks
+  can't reach a gateway-routed session — see docs/en/auto-mode-classifier-
+  billing) are sent with `stream: false`, which this endpoint 400s on
+  ("Stream must be set to true") — verified live, 2026-09-26, reproduced
+  with a plain non-streaming /v1/messages curl call before the fix and
+  confirmed fixed after. Unpatched, this silently blocks every tool call
+  gated by auto mode's classifier (e.g. Bash), not just the classifier
+  request itself.
+- `max_input_tokens` is declared explicitly per model (see `model_info`
+  below) rather than left to LiteLLM's own cost-map guess. LiteLLM 1.102.0
+  doesn't know the "gpt-6-sol" / "gpt-5.6-sol" slugs at all and falls back
+  to fuzzy-matching unrelated entries in its bundled cost map, landing on
+  922000 for these models — the same map's `chatgpt/`-prefixed and other
+  non-Azure channel entries for this model family consistently report
+  1050000 instead, which is what every consumer of this proxy's `/v1/models`
+  (e.g. Claude Code's context-window sizing, downstream launchers) should
+  see instead of LiteLLM's guess.
 
 Multi-model note: a single running proxy can expose more than one Codex
 model alias at once (e.g. `sol` and `astra` simultaneously) — each
@@ -45,6 +64,13 @@ CODEX_RESPONSES_API_BASE = "https://chatgpt.com/backend-api/codex"
 
 PROXY_MASTER_KEY = "sk-codextender-local"
 
+# Declared context window for this model family (see the module docstring's
+# "max_input_tokens" note for why this overrides LiteLLM's own cost-map
+# guess). Consumers such as Claude Code's context-window sizing
+# (CLAUDE_CODE_MAX_CONTEXT_TOKENS) read this back via GET /v1/models.
+MODEL_MAX_INPUT_TOKENS = 1_050_000
+MODEL_MAX_OUTPUT_TOKENS = 128_000
+
 
 def render_config_yaml(
     *,
@@ -69,9 +95,17 @@ def render_config_yaml(
                     "api_base": api_base,
                     "api_key": access_token,
                     "extra_headers": extra_headers,
-                    "extra_body": {"store": False},
+                    # `stream: True` is forced here, not left to the incoming
+                    # client request: Claude Code's auto-mode classifier
+                    # requests send `stream: false`, which this endpoint 400s
+                    # on ("Stream must be set to true"). See module docstring.
+                    "extra_body": {"store": False, "stream": True},
                     "drop_params": True,
                     "additional_drop_params": ["max_output_tokens", "max_tokens", "user"],
+                },
+                "model_info": {
+                    "max_input_tokens": MODEL_MAX_INPUT_TOKENS,
+                    "max_output_tokens": MODEL_MAX_OUTPUT_TOKENS,
                 },
             }
             for alias, model in models

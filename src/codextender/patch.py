@@ -1,7 +1,7 @@
-"""Fix two Codex-dialect gaps in LiteLLM's Anthropic<->Responses translation.
+"""Fix three Codex-dialect gaps in LiteLLM's Anthropic<->Responses translation.
 
-Both verified live against the real chatgpt.com/backend-api/codex endpoint
-(gpt-6-sol, 2026-09-22):
+All verified live against the real chatgpt.com/backend-api/codex endpoint
+(gpt-6-sol, 2026-09-22 for the first two, 2026-09-26 for the third):
 
 1. stop_reason (see _patch_stop_reason): LiteLLM's AnthropicResponsesStreamWrapper
    decides `stop_reason` by inspecting the *final* `response.completed` event's
@@ -20,9 +20,27 @@ Both verified live against the real chatgpt.com/backend-api/codex endpoint
    dialect 400s on any non-user/assistant role in `input`
    ("System messages are not allowed").
 
-Neither is a LiteLLM bug — both are correct per the documented Responses API
-contract that non-Codex providers actually implement. They're Codex-specific
-gaps in its own dialect.
+3. Non-streaming requests (see _patch_force_streaming): Codex's endpoint hard-
+   requires `stream: true` in the wire body, rejecting anything else with a
+   400 ("Stream must be set to true") -- config.py's `extra_body` forces that
+   at the wire level, but LiteLLM's OWN Python-level branch on whether to
+   expect a plain `ResponsesAPIResponse` or a streaming iterator is driven
+   separately, by the *caller's* original `stream` argument (i.e. whatever
+   the client's own /v1/messages request said), not by extra_body. A caller
+   that asks for `stream: false` -- which config.py's forced wire-level
+   `stream: true` has nothing to do with -- still gets back a
+   ResponsesAPIStreamingIterator instead of the ResponsesAPIResponse LiteLLM's
+   own non-streaming code path expects, and it raises. Concretely, this is
+   Claude Code's own auto-mode classifier request (see auto-mode-classifier-
+   billing docs): when server-side classifier checks can't reach a gateway-
+   routed session, Claude Code falls back to a self-issued, non-streaming
+   classifier call over the SAME connection, and unpatched, every one of
+   those calls breaks -- silently blocking every tool call gated by auto
+   mode (Bash included), not just the classifier request itself.
+
+None of the three is a LiteLLM bug -- all are correct per the documented
+Responses API contract that non-Codex providers actually implement. They're
+Codex-specific gaps in its own dialect.
 
 Patch strategy for both: black-box, at a public method boundary, not a
 reimplementation of LiteLLM's internal translation logic. This survives
@@ -46,12 +64,13 @@ _PATCHED_ATTR = "_codextender_patched"
 
 
 def apply() -> bool:
-    """Apply both Codex-compatibility patches. Returns True only if both
+    """Apply all three Codex-compatibility patches. Returns True only if all
     applied — callers should treat a False return as a hard startup error,
-    not a silent no-op, since running unpatched means either a broken
-    tool-use loop or a hard 400 on every request against Codex.
+    not a silent no-op, since running unpatched means a broken tool-use loop,
+    a hard 400 on every request against Codex, or every auto-mode classifier
+    request silently failing.
     """
-    return _patch_stop_reason() and _patch_system_role_items()
+    return _patch_stop_reason() and _patch_system_role_items() and _patch_force_streaming()
 
 
 def _patch_stop_reason() -> bool:
@@ -152,6 +171,164 @@ def _patch_system_role_items() -> bool:
         "LiteLLMAnthropicToResponsesAPIAdapter"
     )
     return True
+
+
+def _patch_force_streaming() -> bool:
+    """Monkeypatch LiteLLM's Anthropic->Responses async handler so a
+    non-streaming caller (Claude Code's auto-mode classifier request) still
+    works against an endpoint that hard-requires `stream: true`.
+
+    Root cause (verified live, 2026-09-26): config.py's `extra_body: {"stream":
+    true}` forces the WIRE request Codex sees to always stream, which fixes
+    Codex's 400. But `async_anthropic_messages_handler`'s Python-level branch
+    (SSE-wrap vs. plain-response) reads its own `stream` argument -- the
+    caller's original request flag, untouched by extra_body -- so a caller
+    that asked for `stream: false` still hits the non-streaming branch,
+    which then chokes on the ResponsesAPIStreamingIterator extra_body's
+    override produced instead of the ResponsesAPIResponse it expects.
+
+    Patch strategy: always call the original handler with `stream=True`
+    (matching what actually happens on the wire either way), then:
+      - caller wanted streaming: return the SSE-encoded generator unchanged
+        -- zero behavior change for the main chat path.
+      - caller wanted non-streaming: drain the underlying stream wrapper's
+        raw Anthropic-shaped event dicts ourselves (going around the
+        SSE-encoding step, which only encodes bytes for transport) and
+        aggregate them into the same AnthropicMessagesResponse shape
+        `_ADAPTER.translate_response()` would have produced for a plain
+        response, per the documented Anthropic Messages streaming event
+        sequence (message_start / content_block_* / message_delta /
+        message_stop).
+    """
+    try:
+        from litellm.llms.anthropic.experimental_pass_through.responses_adapters import (
+            handler as mod,
+        )
+    except ImportError:
+        logger.error(
+            "codextender: could not import LiteLLM's Anthropic->Responses "
+            "handler module. Is litellm==1.102.0 installed?"
+        )
+        return False
+
+    cls = getattr(mod, "LiteLLMMessagesToResponsesAPIHandler", None)
+    if cls is None:
+        logger.error(
+            "codextender: LiteLLM no longer exposes "
+            "LiteLLMMessagesToResponsesAPIHandler in the expected module. "
+            "This patch needs updating for your installed litellm version."
+        )
+        return False
+
+    patched_attr = _PATCHED_ATTR + "_force_streaming"
+    if getattr(cls, patched_attr, False):
+        return True
+
+    original_async_handler = cls.async_anthropic_messages_handler
+
+    @functools.wraps(original_async_handler)
+    async def patched_async_handler(*args, stream: bool | None = False, **kwargs):
+        result = await original_async_handler(*args, stream=True, **kwargs)
+        if stream:
+            return result
+        return await _aggregate_anthropic_sse_stream(result)
+
+    cls.async_anthropic_messages_handler = staticmethod(patched_async_handler)
+    setattr(cls, patched_attr, True)
+    logger.info(
+        "codextender: applied force-streaming patch to "
+        "LiteLLMMessagesToResponsesAPIHandler.async_anthropic_messages_handler"
+    )
+    return True
+
+
+async def _aggregate_anthropic_sse_stream(sse_bytes_iter) -> dict:
+    """Drain an Anthropic-format SSE byte stream (as produced by
+    `AnthropicResponsesStreamWrapper.async_anthropic_sse_wrapper()`) into a
+    single AnthropicMessagesResponse-shaped dict, per the documented event
+    sequence: message_start, content_block_start/delta/stop (repeated per
+    block), message_delta, message_stop.
+    """
+    import json as _json
+
+    message: dict | None = None
+    blocks: dict[int, dict] = {}
+    partial_json: dict[int, str] = {}
+    usage_updates: dict = {}
+
+    async for raw in sse_bytes_iter:
+        for event in _parse_sse_events(raw):
+            etype = event.get("type")
+            if etype == "message_start":
+                message = dict(event.get("message") or {})
+            elif etype == "content_block_start":
+                idx = event.get("index")
+                block = dict(event.get("content_block") or {})
+                if block.get("type") == "tool_use":
+                    partial_json[idx] = ""
+                blocks[idx] = block
+            elif etype == "content_block_delta":
+                idx = event.get("index")
+                block = blocks.get(idx)
+                if block is None:
+                    continue
+                delta = event.get("delta") or {}
+                if delta.get("type") == "text_delta":
+                    block["text"] = block.get("text", "") + delta.get("text", "")
+                elif delta.get("type") == "input_json_delta":
+                    partial_json[idx] = partial_json.get(idx, "") + delta.get("partial_json", "")
+            elif etype == "content_block_stop":
+                idx = event.get("index")
+                if idx in partial_json:
+                    raw_json = partial_json.pop(idx)
+                    try:
+                        blocks[idx]["input"] = _json.loads(raw_json) if raw_json else {}
+                    except ValueError:
+                        blocks[idx]["input"] = {}
+            elif etype == "message_delta":
+                delta = event.get("delta") or {}
+                if message is not None:
+                    for key in ("stop_reason", "stop_sequence"):
+                        if key in delta:
+                            message[key] = delta[key]
+                usage = event.get("usage")
+                if isinstance(usage, dict):
+                    usage_updates.update(usage)
+            elif etype == "message_stop":
+                break
+
+    if message is None:
+        raise ValueError(
+            "codextender: aggregated an empty Codex response stream (no "
+            "message_start event) -- see _aggregate_anthropic_sse_stream"
+        )
+
+    message["content"] = [blocks[i] for i in sorted(blocks)]
+    if usage_updates:
+        message["usage"] = {**(message.get("usage") or {}), **usage_updates}
+    return message
+
+
+def _parse_sse_events(raw: bytes | str) -> list[dict]:
+    """Parse one or more `data: {...}` SSE lines out of a raw chunk into
+    their decoded JSON event dicts, ignoring `event:`/blank lines and a
+    trailing `data: [DONE]` sentinel.
+    """
+    import json as _json
+
+    text = raw.decode() if isinstance(raw, (bytes, bytearray)) else raw
+    events: list[dict] = []
+    for line in text.splitlines():
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if not payload or payload == "[DONE]":
+            continue
+        try:
+            events.append(_json.loads(payload))
+        except ValueError:
+            continue
+    return events
 
 
 def _fold_non_user_role_items_into_instructions(kwargs: dict) -> dict:
