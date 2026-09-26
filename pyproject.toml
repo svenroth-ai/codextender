@@ -5,6 +5,20 @@ description = "Run Claude Code on your OpenAI/ChatGPT Codex-plan subscription mo
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
+authors = [{ name = "Sven Roth" }]
+keywords = ["claude-code", "codex", "chatgpt", "anthropic", "litellm", "proxy"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Build Tools",
+]
 dependencies = [
     # Pinned exact version: this package monkeypatches an internal LiteLLM
     # class (AnthropicResponsesStreamWrapper) to fix a stop_reason gap that
@@ -14,6 +28,11 @@ dependencies = [
     "litellm[proxy]==1.102.0",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/svenroth-ai/codextender"
+Repository = "https://github.com/svenroth-ai/codextender"
+Issues = "https://github.com/svenroth-ai/codextender/issues"
 
 [project.scripts]
 codextender = "codextender.cli:main"
