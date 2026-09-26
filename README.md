@@ -139,13 +139,22 @@ list what models it's currently serving, without invoking `codex` itself:
 .\scripts\install-windows-autostart.ps1
 ```
 
-Registers a Scheduled Task that starts the proxy at logon and restarts it if
-it crashes (up to 5 times, 1 minute apart). Logs to
+Installs a Startup-folder shortcut (a hidden VBS wrapper, no console window)
+that starts the proxy at logon. Logs to
 `%LOCALAPPDATA%\codextender\logs\codextender.log`. Pass `-ModelArgs`/`-Port`
 to change what it exposes — see the script's own comment header
 (`Get-Help .\scripts\install-windows-autostart.ps1 -Full`) for all
-parameters. To remove: `Unregister-ScheduledTask -TaskName "Codextender"
--Confirm:$false`.
+parameters. To remove: `.\scripts\install-windows-autostart.ps1 -Uninstall`.
+
+Deliberately not a Scheduled Task: on an AzureAD/corporate-managed machine,
+`Register-ScheduledTask` can need elevation just to register, and even once
+registered the task can silently fail to actually launch anything
+(`LastTaskResult=1`, no process, no log line) while the identical binary
+launches fine from an interactive PowerShell session — confirmed live,
+2026-09-26. A Startup-folder entry runs in that same interactive logon
+session, so it doesn't hit whatever policy distinguishes the two. No crash
+restart loop (the Scheduled Task version had one, via `-RestartCount`) — not
+yet replaced here.
 
 Run this yourself, the same way you run anything else here that touches your
 local machine's persistent state or credentials — it isn't something an
