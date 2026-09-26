@@ -160,6 +160,22 @@ Run this yourself, the same way you run anything else here that touches your
 local machine's persistent state or credentials — it isn't something an
 agent should register on your behalf.
 
+### Manual (re)start
+
+```powershell
+.\scripts\start-codextender.ps1
+```
+
+Stops any already-running instance, starts a fresh one in the background (no
+lingering console — same launcher the autostart entry uses), polls
+`/health/liveliness`, and closes its own window after 4s once confirmed up
+(mirrors shipwright-webui's `start-server-production.ps1` UX). Requires
+`install-windows-autostart.ps1` to have been run at least once, since it
+reuses that script's generated launcher rather than duplicating the
+port/model flags in a second place. Use this after pulling/editing source —
+being an editable install (`pip install -e .`), a restart alone picks up the
+change, no rebuild needed.
+
 ## Status
 
 Early / personal-use quality, not a hardened production proxy.
