@@ -1,0 +1,35 @@
+{
+  "name": "@svenroth-ai/codextender",
+  "version": "0.1.0",
+  "description": "Run Claude Code on your OpenAI/ChatGPT Codex-plan subscription models. `npx @svenroth-ai/codextender@latest` — no separate Python setup.",
+  "type": "module",
+  "bin": {
+    "codextender": "bin/codextender.mjs"
+  },
+  "engines": {
+    "node": ">=20.12.0"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "keywords": [
+    "claude-code",
+    "codex",
+    "chatgpt",
+    "anthropic",
+    "litellm",
+    "proxy"
+  ],
+  "author": "Sven Roth",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/svenroth-ai/codextender.git",
+    "directory": "npm"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
