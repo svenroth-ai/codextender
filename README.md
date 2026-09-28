@@ -220,6 +220,19 @@ broken as originally conceived here: once `ANTHROPIC_BASE_URL` is
 overridden, Claude Code most likely stops using its subscription-linked
 OAuth and would need a plain, paid, per-token Anthropic API key instead.
 
+## Documentation
+
+This README covers the "how do I use it" and the annoying implementation
+details. For the formal write-up:
+
+- [`docs/requirements.md`](docs/requirements.md) — what it must do and why,
+  as testable FR/AC pairs.
+- [`docs/architecture.md`](docs/architecture.md) — how it's built (process
+  layout, request flow, token refresh, install paths).
+- [`docs/spec.md`](docs/spec.md) — the concrete interface contract (CLI
+  flags, env vars, HTTP surface, config shape) plus a plain-language
+  Business Spec.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Built on top of
