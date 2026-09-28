@@ -211,6 +211,10 @@ picks up the change, no rebuild needed.
   layers that let subagents inherit the parent session's model already get
   equivalent behavior for free, and Claude Code most likely stops using its
   subscription-linked OAuth once `ANTHROPIC_BASE_URL` is overridden anyway.
+  The one exception: requests for `claude-sonnet-*` and `claude-haiku-*`
+  (Claude Code sends these for internal jobs such as the auto-mode safety
+  check, whatever `ANTHROPIC_MODEL` says) are answered by your first
+  `--model`, so they don't fail with `Invalid model name`.
 - Personal-use quality: single-user, single-machine, not a hardened
   production proxy.
 

@@ -64,6 +64,8 @@ CODEX_RESPONSES_API_BASE = "https://chatgpt.com/backend-api/codex"
 
 PROXY_MASTER_KEY = "sk-codextender-local"
 
+CLAUDE_TIER_WILDCARDS = ("claude-sonnet-*", "claude-haiku-*")
+
 # Declared context window for this model family (see the module docstring's
 # "max_input_tokens" note for why this overrides LiteLLM's own cost-map
 # guess). Consumers such as Claude Code's context-window sizing
@@ -86,30 +88,39 @@ def render_config_yaml(
     if account_id:
         extra_headers["chatgpt-account-id"] = account_id
 
+    def entry(name: str, model: str) -> dict:
+        return {
+            "model_name": name,
+            "litellm_params": {
+                "model": f"openai/{model}",
+                "api_base": api_base,
+                "api_key": access_token,
+                "extra_headers": extra_headers,
+                # `stream: True` is forced here, not left to the incoming
+                # client request: Claude Code's auto-mode classifier
+                # requests send `stream: false`, which this endpoint 400s
+                # on ("Stream must be set to true"). See module docstring.
+                "extra_body": {"store": False, "stream": True},
+                "drop_params": True,
+                "additional_drop_params": ["max_output_tokens", "max_tokens", "user"],
+            },
+            "model_info": {
+                "max_input_tokens": MODEL_MAX_INPUT_TOKENS,
+                "max_output_tokens": MODEL_MAX_OUTPUT_TOKENS,
+            },
+        }
+
+    model_list = [entry(alias, model) for alias, model in models]
+    # Claude Code sends some internal requests (e.g. the auto-mode safety
+    # classifier) to a hardcoded claude-sonnet-*/claude-haiku-* name that
+    # ignores ANTHROPIC_MODEL. Unrouted, LiteLLM 400s on them ("Invalid model
+    # name") and the check silently stops guarding anything. Wildcard entries
+    # send those to the first (default) model instead.
+    default_model = models[0][1]
+    model_list += [entry(pattern, default_model) for pattern in CLAUDE_TIER_WILDCARDS]
+
     config = {
-        "model_list": [
-            {
-                "model_name": alias,
-                "litellm_params": {
-                    "model": f"openai/{model}",
-                    "api_base": api_base,
-                    "api_key": access_token,
-                    "extra_headers": extra_headers,
-                    # `stream: True` is forced here, not left to the incoming
-                    # client request: Claude Code's auto-mode classifier
-                    # requests send `stream: false`, which this endpoint 400s
-                    # on ("Stream must be set to true"). See module docstring.
-                    "extra_body": {"store": False, "stream": True},
-                    "drop_params": True,
-                    "additional_drop_params": ["max_output_tokens", "max_tokens", "user"],
-                },
-                "model_info": {
-                    "max_input_tokens": MODEL_MAX_INPUT_TOKENS,
-                    "max_output_tokens": MODEL_MAX_OUTPUT_TOKENS,
-                },
-            }
-            for alias, model in models
-        ],
+        "model_list": model_list,
         "general_settings": {"master_key": PROXY_MASTER_KEY},
     }
     return yaml.safe_dump(config, sort_keys=False)

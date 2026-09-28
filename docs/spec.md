@@ -174,6 +174,10 @@ model_list:
     model_info:
       max_input_tokens: 1050000     # FR-06
       max_output_tokens: 128000
+  # Same params again for each of these, pointing at the FIRST --model's slug.
+  # Not listed by GET /v1/models.
+  - model_name: claude-sonnet-*
+  - model_name: claude-haiku-*
 general_settings:
   master_key: sk-codextender-local
 ```
@@ -189,6 +193,10 @@ general_settings:
   equivalent behavior for free, and once `ANTHROPIC_BASE_URL` is
   overridden, Claude Code most likely stops using its subscription-linked
   OAuth anyway (would need a separate, paid, per-token Anthropic API key).
+  Exception: `claude-sonnet-*` and `claude-haiku-*` are wildcard-routed to
+  the first `--model` (see config shape), because Claude Code sends
+  internal requests (auto-mode safety classifier) to those hardcoded names
+  and an unrouted name gets a 400, which silently disables the check.
 - **No reactive 401 refresh.** Token refresh (FR-08) is poll-driven, not
   triggered by an actual 401 from Codex. Would recover faster from an
   externally-invalidated token; not yet implemented.
