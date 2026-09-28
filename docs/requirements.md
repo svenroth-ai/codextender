@@ -75,8 +75,8 @@ done, so multi-step tasks complete correctly instead of stopping early.
 
 ## FR-04: Fold system prompt into `instructions`
 
-A standard Claude Code session — with its default settings, including
-prompt caching — must work out of the box, without the user needing to
+A standard Claude Code session, with its default settings, including
+prompt caching, must work out of the box, without the user needing to
 change any configuration to accommodate this proxy.
 
 **Acceptance criteria**
@@ -84,6 +84,11 @@ change any configuration to accommodate this proxy.
   first turn.
 - The system prompt's content still reaches the model (folded into
   `instructions`), not silently dropped.
+- Claude Code's `x-anthropic-billing-header:` line, whose content changes
+  on every request, is stripped out of the folded text rather than passed
+  through, so repeated turns present a stable prefix instead of one that
+  changes every time and defeats prefix-based prompt caching on Codex's
+  backend.
 
 ## FR-05: Serve non-streaming callers
 

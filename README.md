@@ -13,10 +13,13 @@ line of your existing Claude Code setup.
 
 Other local proxies solve the same problem; this isn't the only way to do
 it. What's specific to codextender: it also serves non-streaming callers
-(Claude Code's own auto-mode classifier request expects one), and it
-refreshes OAuth credentials proactively on a background timer, including
-after the machine wakes from suspend, rather than only when the next
-request happens to need a fresh token.
+(Claude Code's own auto-mode classifier request expects one), it refreshes
+OAuth credentials proactively on a background timer, including after the
+machine wakes from suspend, rather than only when the next request happens
+to need a fresh token, and it strips a header line that Claude Code
+changes on every request before forwarding the system prompt, so repeated
+turns keep a stable prefix for Codex's own prompt caching instead of
+busting it on every message.
 
 ## How it works
 
@@ -69,6 +72,12 @@ non-obvious blockers, found by testing directly against the live endpoint:
   role there ("System messages are not allowed"), even "developer", unlike
   standard OpenAI Responses API. codextender patches LiteLLM's request
   translator to fold that content into `instructions` instead.
+- **The system prompt itself was quietly busting the prompt cache.** Claude
+  Code prepends an `x-anthropic-billing-header:` line to what it sends as
+  the system prompt, and part of that line's content changes on every
+  single request. Folded verbatim into `instructions`, it meant Codex saw a
+  different prefix every turn, so it couldn't reuse anything from previous
+  turns. codextender strips that one line before forwarding.
 - **Tool-use breaks silently without a patch.** After a tool call, this
   endpoint's `response.completed` event ships an *empty* `output` array
   (unlike standard OpenAI Responses API, which repeats the function-call

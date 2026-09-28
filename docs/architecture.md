@@ -97,6 +97,12 @@ where Codex's Responses-API dialect diverges from what LiteLLM (correctly,
 per the documented standard) assumes. See `docs/requirements.md` FR-03/04/05
 and `patch.py`'s own module docstring for the verified root cause of each.
 
+The system-prompt fold (FR-04) also strips Claude Code's
+`x-anthropic-billing-header:` line, whose content changes on every request,
+before the text reaches `instructions`. Left in, it would put a different
+prefix in front of Codex on every turn and defeat prefix-based prompt
+caching on the backend. See `_strip_billing_header_line` in `patch.py`.
+
 ## Background token refresh
 
 ```mermaid

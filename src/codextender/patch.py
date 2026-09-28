@@ -18,7 +18,11 @@ All verified live against the real chatgpt.com/backend-api/codex endpoint
    LiteLLM inserts a `role: "developer"` message into the Responses API
    `input` array instead of using the plain `instructions` string. Codex's
    dialect 400s on any non-user/assistant role in `input`
-   ("System messages are not allowed").
+   ("System messages are not allowed"). While folding that content into
+   `instructions`, we also drop Claude Code's `x-anthropic-billing-header:`
+   line (see _strip_billing_header_line): its content changes on every
+   request, so leaving it in would put a different prefix in front of Codex
+   on every turn and defeat any prefix-based prompt caching on the backend.
 
 3. Non-streaming requests (see _patch_force_streaming): Codex's endpoint hard-
    requires `stream: true` in the wire body, rejecting anything else with a
@@ -331,7 +335,35 @@ def _parse_sse_events(raw: bytes | str) -> list[dict]:
     return events
 
 
+_BILLING_HEADER_PREFIX = "x-anthropic-billing-header:"
+
+
+def _strip_billing_header_line(text: str) -> str:
+    """Drop Claude Code's `x-anthropic-billing-header:` line, if present.
+
+    That line's content changes on every request (verified live,
+    2026-09-28: two consecutive `claude -p` calls carried different
+    `cc_version` build hashes), so leaving it in `instructions` puts a
+    different prefix in front of Codex on every turn and defeats any
+    prefix-based prompt caching the backend might do.
+    """
+    lines = text.split("\n")
+    filtered = [
+        line for line in lines
+        if not line.strip().lower().startswith(_BILLING_HEADER_PREFIX)
+    ]
+    return "\n".join(filtered)
+
+
 def _fold_non_user_role_items_into_instructions(kwargs: dict) -> dict:
+    # Strip unconditionally, even if there's nothing to fold from `input`:
+    # a request with no prompt-cache breakpoint never gets a `developer`
+    # role item, so LiteLLM puts the system text straight into
+    # `instructions` and the loop below never sees it.
+    existing_instructions = kwargs.get("instructions") or ""
+    if existing_instructions:
+        kwargs["instructions"] = _strip_billing_header_line(existing_instructions)
+
     input_items = kwargs.get("input")
     if not isinstance(input_items, list):
         return kwargs
@@ -343,7 +375,9 @@ def _fold_non_user_role_items_into_instructions(kwargs: dict) -> dict:
         if role in ("system", "developer"):
             for part in item.get("content") or []:
                 if isinstance(part, dict) and part.get("type") == "input_text" and part.get("text"):
-                    extracted_text.append(part["text"])
+                    stripped = _strip_billing_header_line(part["text"])
+                    if stripped:
+                        extracted_text.append(stripped)
             continue
         remaining.append(item)
 
