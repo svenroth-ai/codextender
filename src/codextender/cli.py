@@ -61,7 +61,8 @@ def main(argv: list[str] | None = None) -> int:
         dest="models",
         metavar="SLUG[:ALIAS]",
         help="Codex model slug to expose, optionally with :alias (the name "
-        "Claude Code calls it as via ANTHROPIC_MODEL). Repeatable — pass "
+        "Claude Code calls it as via ANTHROPIC_MODEL or "
+        "ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL). Repeatable: pass "
         "multiple times to serve several models from one running proxy, "
         "e.g. --model gpt-6-sol:sol --model gpt-6-astra:astra. Alias "
         "defaults to the slug itself when omitted. Default if unset: "
@@ -115,10 +116,13 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Starting proxy on http://127.0.0.1:%d (model aliases: %s)", args.port, aliases)
         logger.info(
             "Point Claude Code at it with: ANTHROPIC_BASE_URL=http://127.0.0.1:%d "
-            "ANTHROPIC_AUTH_TOKEN=<see README> ANTHROPIC_MODEL=<alias> "
-            "ANTHROPIC_DEFAULT_OPUS_MODEL=<alias> ANTHROPIC_DEFAULT_SONNET_MODEL=<alias> "
-            "ANTHROPIC_DEFAULT_HAIKU_MODEL=<alias> claude",
+            "ANTHROPIC_AUTH_TOKEN=<see README>",
             args.port,
+        )
+        logger.info(
+            "Set ANTHROPIC_MODEL and ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL "
+            "to one of: %s (an unmapped tier alias fails with a 400)",
+            aliases,
         )
 
         if not args.no_token_refresh:

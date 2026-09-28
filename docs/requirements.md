@@ -133,9 +133,12 @@ effortless.
   entries for `claude-*` names. Claude's tier aliases are mapped client-side
   with `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` and
   `ANTHROPIC_DEFAULT_HAIKU_MODEL`, each set to an exposed alias. Left
-  unmapped, a subagent with `model: opus` or the auto-mode safety check
-  sends a `claude-*` name and gets a 400; for the safety check that
-  silently disables the guard.
+  unmapped, a subagent with `model: opus` or the auto-mode classifier
+  sends a `claude-*` name and gets a 400; for the classifier that blocks
+  every tool call gated by auto mode.
+- At startup the proxy logs the aliases it serves and which variables a
+  caller must point at them, so a missing mapping is diagnosable from the
+  proxy log.
 
 ## FR-08: Background OAuth token refresh
 

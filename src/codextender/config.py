@@ -43,9 +43,8 @@ tier aliases (opus/sonnet/haiku) are mapped onto these aliases client-side via
 ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL, so the proxy never sees a
 claude-* model name and needs no entries for them.
 
-NOT implemented here (see README "Status" / Spec/codextender-integration.md
-"Open questions"): passing Claude tier names (opus/sonnet/haiku/fable)
-through to the real Anthropic API from this same proxy. Once
+NOT implemented here (see docs/spec.md "Explicit non-goals"): passing Claude
+tier names through to the real Anthropic API from this same proxy. Once
 ANTHROPIC_BASE_URL is overridden, Claude Code most likely stops using its
 subscription-linked OAuth and would need a plain ANTHROPIC_AUTH_TOKEN
 instead — routing tier calls onward would probably mean a real,

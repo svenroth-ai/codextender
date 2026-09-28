@@ -105,7 +105,7 @@ claude
 - `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` and
   `ANTHROPIC_DEFAULT_HAIKU_MODEL` are required. They make Claude Code
   resolve the `opus`/`sonnet`/`haiku` aliases (subagent `model:` fields,
-  `--model`, the auto-mode safety check) to a proxy alias instead of a
+  `claude --model`, the auto-mode classifier) to a proxy alias instead of a
   `claude-*` name, which the proxy would reject with a 400. Each may point
   at a different exposed alias (e.g. opus on `astra`, the others on `sol`).
 - `CODEXTENDER_ACTIVE` / `CODEXTENDER_MODEL` are **not read by codextender
