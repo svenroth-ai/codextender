@@ -234,6 +234,21 @@ details. For the formal write-up:
   flags, env vars, HTTP surface, config shape) plus a plain-language
   Business Spec.
 
+## A note on terms of service
+
+codextender reuses your own Codex-plan subscription's OAuth credentials
+(the same ones `codex login` already wrote to `~/.codex/auth.json`) from
+a third-party client, against the ChatGPT-internal Codex endpoint rather
+than a public, versioned API. My understanding is that this is consistent
+with how OpenAI has treated subscription-based third-party tooling since
+opening Codex to all paid ChatGPT tiers and adding documented OAuth
+support for external tools in April 2026 (see
+[OpenClaw's OpenAI provider docs](https://docs.openclaw.ai/providers/openai)).
+This is my own reading of publicly available information, not a
+confirmation from OpenAI, and this area of policy has shifted more than
+once in 2026 for both OpenAI and Anthropic — if this understanding is
+wrong, I'd rather be corrected than find out via a silent account action.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Built on top of
