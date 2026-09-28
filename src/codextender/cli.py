@@ -115,7 +115,9 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Starting proxy on http://127.0.0.1:%d (model aliases: %s)", args.port, aliases)
         logger.info(
             "Point Claude Code at it with: ANTHROPIC_BASE_URL=http://127.0.0.1:%d "
-            "ANTHROPIC_AUTH_TOKEN=<see README> ANTHROPIC_MODEL=<alias> claude",
+            "ANTHROPIC_AUTH_TOKEN=<see README> ANTHROPIC_MODEL=<alias> "
+            "ANTHROPIC_DEFAULT_OPUS_MODEL=<alias> ANTHROPIC_DEFAULT_SONNET_MODEL=<alias> "
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL=<alias> claude",
             args.port,
         )
 

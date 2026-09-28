@@ -129,10 +129,13 @@ effortless.
   `model_list` entry.
 - Switching which model a session uses is a client-side `ANTHROPIC_MODEL`
   choice — it never requires restarting the proxy.
-- Requests for `claude-sonnet-*` and `claude-haiku-*` are answered by the
-  first `--model` instead of failing. Claude Code sends internal requests
-  (such as the auto-mode safety check) to those hardcoded names regardless
-  of `ANTHROPIC_MODEL`; a 400 there silently disables the check.
+- The proxy serves only the aliases passed with `--model`; it has no
+  entries for `claude-*` names. Claude's tier aliases are mapped client-side
+  with `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` and
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL`, each set to an exposed alias. Left
+  unmapped, a subagent with `model: opus` or the auto-mode safety check
+  sends a `claude-*` name and gets a 400; for the safety check that
+  silently disables the guard.
 
 ## FR-08: Background OAuth token refresh
 

@@ -89,6 +89,9 @@ below are what **Claude Code** reads — codextender never inspects them.
 ANTHROPIC_BASE_URL=http://127.0.0.1:4000 \
 ANTHROPIC_AUTH_TOKEN=sk-codextender-local \
 ANTHROPIC_MODEL=sol \
+ANTHROPIC_DEFAULT_OPUS_MODEL=sol \
+ANTHROPIC_DEFAULT_SONNET_MODEL=sol \
+ANTHROPIC_DEFAULT_HAIKU_MODEL=sol \
 CODEXTENDER_ACTIVE=1 \
 CODEXTENDER_MODEL=sol \
 claude
@@ -99,6 +102,12 @@ claude
   hardcoded, not per-install, since the proxy only ever binds `127.0.0.1`).
 - `ANTHROPIC_MODEL` must be an alias currently exposed by the running proxy
   (see `--model` above).
+- `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` and
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` are required. They make Claude Code
+  resolve the `opus`/`sonnet`/`haiku` aliases (subagent `model:` fields,
+  `--model`, the auto-mode safety check) to a proxy alias instead of a
+  `claude-*` name, which the proxy would reject with a 400. Each may point
+  at a different exposed alias (e.g. opus on `astra`, the others on `sol`).
 - `CODEXTENDER_ACTIVE` / `CODEXTENDER_MODEL` are **not read by codextender
   itself** — a marker convention for downstream tooling (e.g. an external
   code-review roster picker) that needs to know "this session's main model
@@ -174,10 +183,6 @@ model_list:
     model_info:
       max_input_tokens: 1050000     # FR-06
       max_output_tokens: 128000
-  # Same params again for each of these, pointing at the FIRST --model's slug.
-  # Not listed by GET /v1/models.
-  - model_name: claude-sonnet-*
-  - model_name: claude-haiku-*
 general_settings:
   master_key: sk-codextender-local
 ```
@@ -188,15 +193,12 @@ general_settings:
   Python package; the npm wrapper is the only distribution channel for
   end-users (FR-11).
 - **No Claude-tier passthrough.** Routing `opus`/`sonnet`/etc. through this
-  same proxy to real Anthropic was considered and dropped — orchestration
-  layers that let subagents inherit the parent session's model already get
-  equivalent behavior for free, and once `ANTHROPIC_BASE_URL` is
-  overridden, Claude Code most likely stops using its subscription-linked
-  OAuth anyway (would need a separate, paid, per-token Anthropic API key).
-  Exception: `claude-sonnet-*` and `claude-haiku-*` are wildcard-routed to
-  the first `--model` (see config shape), because Claude Code sends
-  internal requests (auto-mode safety classifier) to those hardcoded names
-  and an unrouted name gets a 400, which silently disables the check.
+  same proxy to real Anthropic was considered and dropped: once
+  `ANTHROPIC_BASE_URL` is overridden, Claude Code most likely stops using
+  its subscription-linked OAuth anyway (would need a separate, paid,
+  per-token Anthropic API key). The proxy has no `claude-*` entries; tier
+  aliases are mapped to Codex aliases on the client with the
+  `ANTHROPIC_DEFAULT_*_MODEL` vars.
 - **No reactive 401 refresh.** Token refresh (FR-08) is poll-driven, not
   triggered by an actual 401 from Codex. Would recover faster from an
   externally-invalidated token; not yet implemented.

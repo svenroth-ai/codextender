@@ -128,6 +128,9 @@ Then, in another terminal:
 ANTHROPIC_BASE_URL=http://127.0.0.1:4000 \
 ANTHROPIC_AUTH_TOKEN=sk-codextender-local \
 ANTHROPIC_MODEL=sol \
+ANTHROPIC_DEFAULT_OPUS_MODEL=sol \
+ANTHROPIC_DEFAULT_SONNET_MODEL=sol \
+ANTHROPIC_DEFAULT_HAIKU_MODEL=sol \
 CODEXTENDER_ACTIVE=1 \
 CODEXTENDER_MODEL=sol \
 claude
@@ -135,6 +138,14 @@ claude
 
 Claude Code will now route requests through your Codex-plan subscription's
 model for that alias.
+
+The three `ANTHROPIC_DEFAULT_*_MODEL` vars are required. Claude Code resolves
+the aliases `opus`, `sonnet` and `haiku` (used by subagent `model:` fields,
+`--model`, and internal jobs such as the auto-mode safety check) to
+`claude-*` names, and the proxy only serves your Codex aliases, so an
+unmapped alias fails with `Invalid model name`. Point each one at an alias
+the proxy exposes. With two models running you can split them, for example
+`ANTHROPIC_DEFAULT_OPUS_MODEL=astra` and the other two on `sol`.
 
 The last two vars (`CODEXTENDER_ACTIVE`/`CODEXTENDER_MODEL`) aren't read by
 codextender itself; they're a marker for anything downstream that needs to
@@ -207,14 +218,11 @@ picks up the change, no rebuild needed.
   unexpectedly short-lived token is caught within the next refresh
   interval, not on the first failed request.
 - No Claude-tier passthrough. Routing `opus`/`sonnet`/etc. through this
-  same proxy to real Anthropic was considered and dropped: orchestration
-  layers that let subagents inherit the parent session's model already get
-  equivalent behavior for free, and Claude Code most likely stops using its
-  subscription-linked OAuth once `ANTHROPIC_BASE_URL` is overridden anyway.
-  The one exception: requests for `claude-sonnet-*` and `claude-haiku-*`
-  (Claude Code sends these for internal jobs such as the auto-mode safety
-  check, whatever `ANTHROPIC_MODEL` says) are answered by your first
-  `--model`, so they don't fail with `Invalid model name`.
+  same proxy to real Anthropic was considered and dropped: Claude Code most
+  likely stops using its subscription-linked OAuth once `ANTHROPIC_BASE_URL`
+  is overridden anyway. The proxy serves only the aliases you pass with
+  `--model`; the `ANTHROPIC_DEFAULT_*_MODEL` vars above map Claude's tier
+  aliases onto them on the client side.
 - Personal-use quality: single-user, single-machine, not a hardened
   production proxy.
 
