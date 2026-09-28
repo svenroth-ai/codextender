@@ -38,7 +38,10 @@ model alias at once (e.g. `sol` and `astra` simultaneously) — each
 `--model slug[:alias]` on the CLI becomes its own `model_list` entry here,
 all sharing the same Codex auth/headers/endpoint quirks. A Claude Code
 session picks which one it wants per-launch via `ANTHROPIC_MODEL=<alias>`;
-the proxy itself doesn't need restarting to switch between them.
+the proxy itself doesn't need restarting to switch between them. Claude's own
+tier aliases (opus/sonnet/haiku) are mapped onto these aliases client-side via
+ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL, so the proxy never sees a
+claude-* model name and needs no entries for them.
 
 NOT implemented here (see README "Status" / Spec/codextender-integration.md
 "Open questions"): passing Claude tier names (opus/sonnet/haiku/fable)

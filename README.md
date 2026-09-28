@@ -9,7 +9,9 @@ Codex-compatible: point `claude` at a local proxy and it just works.
 Why: if you're on both a Claude Pro/Max plan and a ChatGPT Codex plan, this
 effectively doubles your usable agent quota. Fall back to your OpenAI
 subscription's models when Claude quota runs out, without changing a single
-line of your existing Claude Code setup.
+line of your existing Claude Code setup. You can also give each Claude tier
+its own Codex model: your `opus` subagents on one, `sonnet` and `haiku` on
+another (see [Usage](#usage)).
 
 Other local proxies solve the same problem; this isn't the only way to do
 it. What's specific to codextender: it also serves non-streaming callers
@@ -145,7 +147,12 @@ the aliases `opus`, `sonnet` and `haiku` (used by subagent `model:` fields,
 `claude-*` names, and the proxy only serves your Codex aliases, so an
 unmapped alias fails with `Invalid model name`. Point each one at an alias
 the proxy exposes. With two models running you can split them, for example
-`ANTHROPIC_DEFAULT_OPUS_MODEL=astra` and the other two on `sol`.
+`ANTHROPIC_DEFAULT_OPUS_MODEL=astra` and the other two on `sol`:
+
+```bash
+codextender --port 4000 --model gpt-6-sol:sol --model gpt-6-astra:astra
+# then launch claude as above, with ANTHROPIC_DEFAULT_OPUS_MODEL=astra
+```
 
 The last two vars (`CODEXTENDER_ACTIVE`/`CODEXTENDER_MODEL`) aren't read by
 codextender itself; they're a marker for anything downstream that needs to
