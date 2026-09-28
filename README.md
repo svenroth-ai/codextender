@@ -117,7 +117,7 @@ roster instead of one that would review a GPT-authored diff with another
 GPT-family model). Harmless to omit if nothing downstream checks for them;
 set `CODEXTENDER_MODEL` to whichever alias you passed as `ANTHROPIC_MODEL`.
 
-### For external tooling (e.g. the Shipwright WebUI integration)
+### For external tooling
 
 The proxy is a stock LiteLLM proxy, so it comes with a couple of endpoints
 beyond the Anthropic-Messages translation that's the whole point of this
@@ -168,8 +168,8 @@ agent should register on your behalf.
 
 Stops any already-running instance, starts a fresh one in the background (no
 lingering console — same launcher the autostart entry uses), polls
-`/health/liveliness`, and closes its own window after 4s once confirmed up
-(mirrors shipwright-webui's `start-server-production.ps1` UX). Requires
+`/health/liveliness`, and closes its own window after 4s once confirmed up.
+Requires
 `install-windows-autostart.ps1` to have been run at least once, since it
 reuses that script's generated launcher rather than duplicating the
 port/model flags in a second place. Use this after pulling/editing source —
@@ -212,10 +212,11 @@ unexpectedly short or externally-invalidated token than polling does).
 **Not implemented, and not needed**: routing Claude tier names
 (`opus`/`sonnet`/etc.) through this same proxy to real Anthropic, so a
 proxied session's review *subagents* could stay on real Claude while the
-main loop uses a Codex model. Turns out unnecessary — Shipwright's own
-`"inherit"` model-tier value already gets this for free (a subagent spawned
-with no explicit model override just rides whatever backend the parent
-session is already using), no proxy changes required. Also would have been
+main loop uses a Codex model. Turns out unnecessary — orchestration layers
+that let subagents inherit the parent session's model already get this for
+free (a subagent spawned with no explicit model override just rides
+whatever backend the parent session is already using), no proxy changes
+required. Also would have been
 broken as originally conceived here: once `ANTHROPIC_BASE_URL` is
 overridden, Claude Code most likely stops using its subscription-linked
 OAuth and would need a plain, paid, per-token Anthropic API key instead.

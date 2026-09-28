@@ -184,11 +184,11 @@ general_settings:
   Python package; the npm wrapper is the only distribution channel for
   end-users (FR-11).
 - **No Claude-tier passthrough.** Routing `opus`/`sonnet`/etc. through this
-  same proxy to real Anthropic was considered and dropped — Shipwright's own
-  `"inherit"` model-tier value already gets equivalent behavior for free,
-  and once `ANTHROPIC_BASE_URL` is overridden, Claude Code most likely stops
-  using its subscription-linked OAuth anyway (would need a separate, paid,
-  per-token Anthropic API key).
+  same proxy to real Anthropic was considered and dropped — orchestration
+  layers that let subagents inherit the parent session's model already get
+  equivalent behavior for free, and once `ANTHROPIC_BASE_URL` is
+  overridden, Claude Code most likely stops using its subscription-linked
+  OAuth anyway (would need a separate, paid, per-token Anthropic API key).
 - **No reactive 401 refresh.** Token refresh (FR-08) is poll-driven, not
   triggered by an actual 401 from Codex. Would recover faster from an
   externally-invalidated token; not yet implemented.

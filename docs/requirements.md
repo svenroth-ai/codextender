@@ -16,8 +16,8 @@ implies, see `docs/spec.md`.
 
 ---
 
-Lightweight requirements list (inspired by Shipwright's FR/AC format, scaled
-down for a single-maintainer tool). Each requirement has an ID, a one-line
+Lightweight requirements list (FR/AC format, scaled down for a
+single-maintainer tool). Each requirement has an ID, a one-line
 statement, and acceptance criteria that describe observable behavior, not
 implementation.
 
