@@ -80,6 +80,18 @@ non-obvious blockers, found by testing directly against the live endpoint:
   single request. Folded verbatim into `instructions`, it meant Codex saw a
   different prefix every turn, so it couldn't reuse anything from previous
   turns. codextender strips that one line before forwarding.
+- **Claude's own model names never reach a Codex model.** Claude Code
+  resolves the aliases `opus`, `sonnet` and `haiku` (subagent `model:`
+  fields, `--model`, and internal jobs such as the auto-mode safety check)
+  to `claude-*` names and sends those to the proxy, which only knows your
+  Codex aliases: `400 no healthy deployments`. A subagent with `model: opus`
+  fails outright, and a failing safety check silently stops guarding
+  anything. Routing those names inside the proxy would work but hides which
+  model actually runs. The fix is on the client side: set
+  `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL` and
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` to your Codex aliases and the proxy never
+  sees a `claude-*` name. `CLAUDE_CODE_SUBAGENT_MODEL` doesn't help: a
+  subagent's own `model:` field takes precedence over it.
 - **Tool-use breaks silently without a patch.** After a tool call, this
   endpoint's `response.completed` event ships an *empty* `output` array
   (unlike standard OpenAI Responses API, which repeats the function-call
@@ -224,12 +236,6 @@ picks up the change, no rebuild needed.
 - Token refresh is timer-based, not reactive. An externally invalidated or
   unexpectedly short-lived token is caught within the next refresh
   interval, not on the first failed request.
-- No Claude-tier passthrough. Routing `opus`/`sonnet`/etc. through this
-  same proxy to real Anthropic was considered and dropped: Claude Code most
-  likely stops using its subscription-linked OAuth once `ANTHROPIC_BASE_URL`
-  is overridden anyway. The proxy serves only the aliases you pass with
-  `--model`; the `ANTHROPIC_DEFAULT_*_MODEL` vars above map Claude's tier
-  aliases onto them on the client side.
 - Personal-use quality: single-user, single-machine, not a hardened
   production proxy.
 
