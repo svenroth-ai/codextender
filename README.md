@@ -176,7 +176,9 @@ the aliases `opus`, `sonnet` and `haiku` (used by subagent `model:` fields,
 `claude-*` names, and the proxy only serves your Codex aliases, so an
 unmapped alias fails with `Invalid model name`. Point each one at an alias
 the proxy exposes. If you ran an earlier version without these vars, add
-them after upgrading, otherwise `opus`/`sonnet`/`haiku` requests fail.
+them after upgrading, otherwise `opus`/`sonnet`/`haiku` requests fail. The
+400 says which var to set and lists the aliases the proxy serves, so you (or
+Claude Code itself) can fix the launch from the error text alone.
 
 With two models running you can split them, for example
 `ANTHROPIC_DEFAULT_OPUS_MODEL=astra` and the other two on `sol`:

@@ -94,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     if not patch.apply():
         logger.error("Refusing to start unpatched — tool-use loops would silently break.")
         return 1
+    patch.install_unknown_model_hint([alias for alias, _ in model_pairs])
 
     try:
         creds = load_credentials()

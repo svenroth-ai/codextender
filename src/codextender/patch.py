@@ -77,6 +77,72 @@ def apply() -> bool:
     return _patch_stop_reason() and _patch_system_role_items() and _patch_force_streaming()
 
 
+_TIER_ENV_VARS = (
+    ("opus", "ANTHROPIC_DEFAULT_OPUS_MODEL"),
+    ("sonnet", "ANTHROPIC_DEFAULT_SONNET_MODEL"),
+    ("haiku", "ANTHROPIC_DEFAULT_HAIKU_MODEL"),
+)
+
+
+def _unknown_model_hint(model_name: str, aliases: list[str]) -> str:
+    """Actionable text for a request whose model this proxy does not serve.
+    Names the exact env var to set when the name is a Claude tier model
+    (claude-opus-*, claude-sonnet-*, claude-haiku-*), a generic pointer otherwise.
+    """
+    served = ", ".join(aliases)
+    lowered = str(model_name).lower()
+    var = next((v for tier, v in _TIER_ENV_VARS if lowered.startswith("claude") and tier in lowered), None)
+    if var is not None:
+        fix = (
+            f"Set {var} (or ANTHROPIC_MODEL, if it names this model) to one of them "
+            "before launching Claude Code."
+        )
+    else:
+        fix = "Set ANTHROPIC_MODEL to one of them before launching Claude Code."
+    return f"codextender serves only these model aliases: {served}. {fix} See README, section Usage."
+
+
+def install_unknown_model_hint(aliases: list[str]) -> bool:
+    """Make the proxy's 'Invalid model name' 400 say what to do about it.
+
+    Cosmetic and diagnostic only, so unlike ``apply()`` a failure here is a
+    warning, not a startup error. Same strategy as the other patches: call
+    LiteLLM's real ``ProxyModelNotFoundError.__init__`` unmodified, then
+    replace the one field that is unhelpful (``detail``) with the original
+    message plus the hint. Claude Code shows that text to the user or the
+    agent, which can then fix its own launch env.
+    """
+    try:
+        from litellm.proxy import route_llm_request as mod
+    except ImportError:
+        logger.warning("codextender: could not import LiteLLM's route_llm_request; unknown-model hint not installed.")
+        return False
+
+    cls = getattr(mod, "ProxyModelNotFoundError", None)
+    if cls is None:
+        logger.warning("codextender: LiteLLM no longer exposes ProxyModelNotFoundError; unknown-model hint not installed.")
+        return False
+
+    if getattr(cls, _PATCHED_ATTR, False):
+        return True
+
+    original_init = cls.__init__
+
+    @functools.wraps(original_init)
+    def patched_init(self, route, model_name, *args, **kwargs):
+        original_init(self, route, model_name, *args, **kwargs)
+        try:
+            detail = self.detail
+            if isinstance(detail, dict) and isinstance(detail.get("error"), str):
+                detail["error"] = f"{detail['error']} {_unknown_model_hint(model_name, aliases)}"
+        except Exception:  # never let a cosmetic hint mask the real 400
+            logger.debug("codextender: could not append unknown-model hint", exc_info=True)
+
+    cls.__init__ = patched_init
+    setattr(cls, _PATCHED_ATTR, True)
+    return True
+
+
 def _patch_stop_reason() -> bool:
     """Monkeypatch LiteLLM's Anthropic-Responses stream wrapper (see module
     docstring: Codex leaves `response.completed.output` empty, so LiteLLM's

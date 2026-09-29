@@ -137,8 +137,11 @@ effortless.
   sends a `claude-*` name and gets a 400; for the classifier that blocks
   every tool call gated by auto mode.
 - At startup the proxy logs the aliases it serves and which variables a
-  caller must point at them, so a missing mapping is diagnosable from the
-  proxy log.
+  caller must point at them.
+- A request for a model the proxy does not serve returns a 400 whose message
+  lists the served aliases and names the env var to set (for a Claude tier
+  name such as `claude-opus-*`, the matching `ANTHROPIC_DEFAULT_*_MODEL`), so
+  the fix is readable in the Claude Code session itself.
 
 ## FR-08: Background OAuth token refresh
 

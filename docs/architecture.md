@@ -178,3 +178,11 @@ silently change those internals out from under the patches; a version bump
 here is a deliberate act that must re-verify each patch still applies
 correctly, not an accident of `pip install --upgrade` picking up something
 newer.
+
+`patch.py` also carries one diagnostic hook, `install_unknown_model_hint`,
+which appends an actionable sentence to LiteLLM's "Invalid model name" 400
+(the served aliases and the env var to set). It is not one of the three
+Codex-compatibility patches: it only changes an error message, and a failure
+to install it logs a warning instead of stopping startup. It targets
+`ProxyModelNotFoundError` and needs the same re-verification on a version
+bump.
