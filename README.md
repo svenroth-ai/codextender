@@ -138,12 +138,12 @@ codextender --port 4000
 
 ## Usage
 
-The proxy defaults to exposing `gpt-6-sol` as alias `sol`. Pass `--model` (repeatable)
+The proxy defaults to exposing `gpt-6.1-sol` as alias `sol`. Pass `--model` (repeatable)
 to expose one or more models from the same running proxy: no restart needed
 to switch between them, just pick a different `ANTHROPIC_MODEL` per session:
 
 ```bash
-codextender --port 4000 --model gpt-6-sol:sol --model gpt-6-astra:astra
+codextender --port 4000 --model gpt-6.1-sol:sol --model gpt-6-astra:astra
 ```
 
 `--model SLUG[:ALIAS]`: alias defaults to the slug itself if omitted. No
@@ -184,13 +184,13 @@ With two models running you can split them, for example
 `ANTHROPIC_DEFAULT_OPUS_MODEL=astra` and the other two on `sol`:
 
 ```bash
-codextender --port 4000 --model gpt-6-sol:sol --model gpt-6-astra:astra
+codextender --port 4000 --model gpt-6.1-sol:sol --model gpt-6-astra:astra
 # then launch claude as above, with ANTHROPIC_DEFAULT_OPUS_MODEL=astra
 ```
 
 With the [autostart](#autostart-windows) proxy, reinstall it with both
 models first: `.\scripts\install-windows-autostart.ps1 -ModelArgs
-"gpt-6-sol:sol","gpt-6-astra:astra"`, then `.\scripts\start-codextender.ps1`.
+"gpt-6.1-sol:sol","gpt-6-astra:astra"`, then `.\scripts\start-codextender.ps1`.
 
 Two more vars are recommended: `CLAUDE_CODE_MAX_CONTEXT_TOKENS` (the window
 the proxy reports via `GET /v1/models`, so Claude Code doesn't compact

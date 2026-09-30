@@ -28,7 +28,7 @@
 
 .PARAMETER ModelArgs
     One or more "SLUG[:ALIAS]" pairs, same shape as codextender's own
-    --model flag. Default: a single gpt-6-sol:sol.
+    --model flag. Default: a single gpt-6.1-sol:sol.
 
 .PARAMETER Port
     Port the proxy listens on. Default: 4000.
@@ -43,10 +43,10 @@
 
 .EXAMPLE
     .\install-windows-autostart.ps1
-    Installs the startup entry with the default gpt-6-sol:sol model on port 4000.
+    Installs the startup entry with the default gpt-6.1-sol:sol model on port 4000.
 
 .EXAMPLE
-    .\install-windows-autostart.ps1 -ModelArgs "gpt-6-sol:sol","gpt-6-astra:astra" -Port 4001
+    .\install-windows-autostart.ps1 -ModelArgs "gpt-6.1-sol:sol","gpt-6-astra:astra" -Port 4001
     Installs the startup entry exposing both models on port 4001.
 
 .NOTES
@@ -58,7 +58,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string[]] $ModelArgs = @("gpt-6-sol:sol"),
+    [string[]] $ModelArgs = @("gpt-6.1-sol:sol"),
     [int] $Port = 4000,
     [string] $LogDir = (Join-Path $env:LOCALAPPDATA "codextender\logs"),
     [switch] $Uninstall

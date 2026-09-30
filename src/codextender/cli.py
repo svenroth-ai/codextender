@@ -64,9 +64,9 @@ def main(argv: list[str] | None = None) -> int:
         "Claude Code calls it as via ANTHROPIC_MODEL or "
         "ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL). Repeatable: pass "
         "multiple times to serve several models from one running proxy, "
-        "e.g. --model gpt-6-sol:sol --model gpt-6-astra:astra. Alias "
+        "e.g. --model gpt-6.1-sol:sol --model gpt-6-astra:astra. Alias "
         "defaults to the slug itself when omitted. Default if unset: "
-        "gpt-6-sol:sol. No catalog is maintained here on purpose — see "
+        "gpt-6.1-sol:sol. No catalog is maintained here on purpose — see "
         "README for why.",
     )
     parser.add_argument(
@@ -89,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    model_pairs = _parse_model_args(args.models or ["gpt-6-sol:sol"])
+    model_pairs = _parse_model_args(args.models or ["gpt-6.1-sol:sol"])
 
     if not patch.apply():
         logger.error("Refusing to start unpatched — tool-use loops would silently break.")
@@ -156,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _parse_model_args(raw: list[str]) -> list[tuple[str, str]]:
-    """``["gpt-6-sol:sol", "gpt-6-astra"]`` -> ``[("sol","gpt-6-sol"),
+    """``["gpt-6.1-sol:sol", "gpt-6-astra"]`` -> ``[("sol","gpt-6.1-sol"),
     ("gpt-6-astra","gpt-6-astra")]`` — alias defaults to the slug itself.
     """
     pairs: list[tuple[str, str]] = []

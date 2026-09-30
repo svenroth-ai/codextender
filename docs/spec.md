@@ -69,7 +69,7 @@ below.
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `--port` | `4000` | Port the proxy listens on. |
-| `--model SLUG[:ALIAS]` | `gpt-6-sol:sol` | Repeatable. Codex model slug to expose, optionally aliased. No catalog is maintained — pass whatever slug your account currently has. |
+| `--model SLUG[:ALIAS]` | `gpt-6.1-sol:sol` | Repeatable. Codex model slug to expose, optionally aliased. No catalog is maintained — pass whatever slug your account currently has. |
 | `--no-token-refresh` | off | Disables the background OAuth refresh thread. |
 | `--token-refresh-interval SECONDS` | `1200` (20 min) | Interval the refresh loop targets; mainly for testing. |
 | `--no-upgrade` (npm wrapper only) | off | Skip the `pip install --upgrade` freshness check on a run where the venv is already installed. |
@@ -173,7 +173,7 @@ every wire-level requirement (FR-01, FR-05, FR-06) is actually declared:
 model_list:
   - model_name: sol                 # the alias
     litellm_params:
-      model: openai/gpt-6-sol       # the real slug
+      model: openai/gpt-6.1-sol       # the real slug
       api_base: https://chatgpt.com/backend-api/codex
       api_key: <codex OAuth access token>
       extra_headers: {originator: codextender, chatgpt-account-id: ...}
