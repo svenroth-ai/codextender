@@ -10,3 +10,4 @@ build/
 .env
 .shipwright-webui/
 .shipwright/
+uv.lock
