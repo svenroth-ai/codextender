@@ -1,6 +1,6 @@
 [project]
 name = "codextender"
-version = "0.1.0"
+version = "0.2.0"
 description = "Run Claude Code on your OpenAI/ChatGPT Codex-plan subscription models, inside Claude Code's own native session, no separate CLI harness required."
 readme = "README.md"
 license = { text = "MIT" }
