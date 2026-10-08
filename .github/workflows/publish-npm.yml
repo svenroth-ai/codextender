@@ -1,0 +1,86 @@
+# Publishes @svenroth-ai/codextender to npm with Trusted Publishing (OIDC).
+# No NPM_TOKEN exists: GitHub's OIDC identity is the credential, and npm
+# attaches provenance automatically.
+#
+# Cutting a release tag is the human gate. A guard checks that the tag matches
+# npm/package.json, is a stable version, and is not already published, so a
+# mismatch or a prerelease fails before anything is published. Prerelease
+# builds are published by hand and never reach `latest`.
+#
+# One-time setup on npmjs.com: package @svenroth-ai/codextender -> Settings ->
+# Trusted Publisher -> GitHub Actions, entered exactly as:
+#   Organization or user: svenroth-ai
+#   Repository:           codextender
+#   Workflow filename:    publish-npm.yml
+#   Environment name:     (blank)
+#
+# Run it for an existing tag via Actions -> "Publish to npm" -> Run workflow,
+# and choose the tag (for example v0.2.0) as the ref.
+#
+# Node >= 22.14 and npm >= 11.5.1 are required for OIDC.
+
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# One fixed group: publishes never run in parallel, so two close tags cannot
+# race the `latest` dist-tag onto the older version.
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish @svenroth-ai/codextender
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Ensure npm supports OIDC
+        run: npm install -g npm@^11.5.1 && npm --version
+
+      - name: Verify tag is a matching, stable, unpublished version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "::error::run this workflow on a tag, not on '${GITHUB_REF_NAME}'"
+            exit 1
+          fi
+          PKG_VERSION="$(node -p "require('./npm/package.json').version")"
+          if [ "v${PKG_VERSION}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::tag '${GITHUB_REF_NAME}' does not match npm/package.json version 'v${PKG_VERSION}'"
+            exit 1
+          fi
+          case "${PKG_VERSION}" in
+            *-*)
+              echo "::error::'${PKG_VERSION}' is a prerelease. This workflow publishes stable releases to 'latest' only."
+              exit 1
+              ;;
+          esac
+          if npm view "@svenroth-ai/codextender@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "::error::@svenroth-ai/codextender@${PKG_VERSION} is already published. Bump the version and tag again."
+            exit 1
+          fi
+          echo "tag ${GITHUB_REF_NAME} is stable v${PKG_VERSION} and not yet published"
+
+      - name: Check the package contents
+        working-directory: npm
+        run: npm pack --dry-run
+
+      - name: Publish (OIDC, no token, provenance automatic)
+        working-directory: npm
+        run: npm publish --access public
