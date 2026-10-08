@@ -1,0 +1,41 @@
+name: Bug report
+description: Report a reproducible problem
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security vulnerabilities, do not use this form. See SECURITY.md.
+        Remove tokens and account details from any logs you paste.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The command you ran and the request you sent.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      render: shell
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: codextender, LiteLLM, Claude Code, Python
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux, WSL]
+    validations:
+      required: true
