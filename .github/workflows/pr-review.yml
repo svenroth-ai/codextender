@@ -1,0 +1,66 @@
+name: PR Review
+
+# Posts the commit status `PR Review`, which is meant to be a required check.
+#
+# pull_request_target runs this file from the default branch, so a PR cannot
+# edit it. The PR's code is never checked out or executed; the diff is only
+# read as text through the API.
+#
+#   Dependabot PRs      reviewed by a model (.github/scripts/pr_review.py)
+#   Maintainer PRs      status set to success, no model review
+#   Anyone else         status set to failure; the maintainer reviews by hand
+#
+# A missing secret or any error ends in failure, never in success.
+
+on:
+  pull_request_target:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the default branch (not the PR)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+
+      - name: Decide and review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          ASSOCIATION: ${{ github.event.pull_request.author_association }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          set -uo pipefail
+          post() {  # $1 state, $2 description
+            gh api "repos/$REPO/statuses/$HEAD_SHA" \
+              -f state="$1" -f context="PR Review" -f description="${2:0:140}"
+          }
+          if [ "$AUTHOR" = "dependabot[bot]" ] && [ "$HEAD_REPO" = "$REPO" ]; then
+            if out=$(python3 .github/scripts/pr_review.py); then
+              post success "$out"
+            else
+              post failure "$out"
+              exit 1
+            fi
+          elif [ "$ASSOCIATION" = "OWNER" ] && [ "$HEAD_REPO" = "$REPO" ]; then
+            post success "Maintainer PR, no model review"
+          else
+            post failure "External PR, maintainer review required"
+            exit 1
+          fi

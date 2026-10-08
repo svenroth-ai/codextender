@@ -1,0 +1,35 @@
+name: Dependabot auto-merge
+
+# Turns on auto-merge for Dependabot patch and minor updates. GitHub then
+# merges the PR once every required check is green, including `PR Review`.
+# Major updates are left for a manual decision.
+#
+# `gh pr merge --auto` only works when auto-merge is enabled on the repo, and
+# it is only safe once the default branch has required checks. Until then the
+# command fails and nothing is merged.
+
+on:
+  pull_request_target:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: Enable auto-merge
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98  # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for patch and minor updates
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
