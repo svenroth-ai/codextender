@@ -63,3 +63,16 @@ dependency audit, Semgrep, Gitleaks and CodeQL. All of them, plus the
 model review, and PRs from anyone else are held for a manual review.
 Dependabot patch and minor updates merge on their own once all checks are
 green; major updates wait for the maintainer.
+
+## Releases
+
+1. Bump the version in `pyproject.toml`, `npm/package.json` and
+   `src/codextender/__init__.py`, and add a section to `CHANGELOG.md`.
+2. Merge that change, then push a tag `vX.Y.Z` that matches the version.
+3. The tag runs `publish-npm.yml`, which publishes the npm wrapper with
+   Trusted Publishing. It refuses a tag that does not match
+   `npm/package.json`, a prerelease, or an already published version.
+
+The wrapper installs the Python package from GitHub on every run, so users
+of `npx @svenroth-ai/codextender@latest` get the current `master` code. The
+npm version only changes when the wrapper itself changes.
