@@ -26,7 +26,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install project and pip-audit
-        run: pip install -e . pip-audit
+        # setuptools ships preinstalled on the runner and is not a project
+        # dependency; upgrade it so the audit only reports what we depend on.
+        run: pip install -U pip setuptools && pip install -e . pip-audit
       # Audits the resolved environment, so transitive dependencies are covered.
       - name: pip-audit
         run: pip-audit --skip-editable
