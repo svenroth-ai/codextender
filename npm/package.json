@@ -1,6 +1,6 @@
 {
   "name": "@svenroth-ai/codextender",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Run Claude Code on your OpenAI/ChatGPT Codex-plan subscription models. `npx @svenroth-ai/codextender@latest` — no separate Python setup.",
   "type": "module",
   "bin": {

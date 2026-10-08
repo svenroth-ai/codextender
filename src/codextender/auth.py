@@ -179,7 +179,7 @@ def refresh_via_app_server(timeout_seconds: float = 20.0) -> CodexCredentials:
             proc,
             1,
             "initialize",
-            {"clientInfo": {"name": "codextender", "version": "0.1.0"}},
+            {"clientInfo": {"name": "codextender", "version": "0.2.0"}},
         )
         _read_matching_response(proc, 1, timeout_seconds)
         _send_jsonrpc(proc, 2, "account/read", {"refreshToken": True})
