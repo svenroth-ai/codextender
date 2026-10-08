@@ -300,6 +300,13 @@ confirmation from OpenAI, and this area of policy has shifted more than
 once in 2026 for both OpenAI and Anthropic. If this understanding is wrong,
 I'd rather be corrected than find out via a silent account action.
 
+## Contributing and security
+
+Issues and PRs are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). To
+report a vulnerability, use a private security advisory as described in
+[SECURITY.md](SECURITY.md). Changes per release are in
+[CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 MIT, see [LICENSE](LICENSE). Built on top of
