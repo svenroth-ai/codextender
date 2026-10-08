@@ -51,3 +51,15 @@ response. Run `uvx ruff check .` before opening a PR. If you touch a
   (`feat:`, `fix:`, `docs:`, `chore:`).
 - One logical change per PR. Describe what you ran to verify it and what
   the response looked like.
+
+## CI and PR review
+
+Every PR runs lint and a patch smoke test (Ubuntu and Windows), a
+dependency audit, Semgrep, Gitleaks and CodeQL. All of them, plus the
+`PR Review` status, must pass before a PR can merge into `master`.
+
+`PR Review` is set by a workflow: Dependabot PRs are reviewed by a model
+(`.github/scripts/pr_review.py`), PRs from the maintainer pass without a
+model review, and PRs from anyone else are held for a manual review.
+Dependabot patch and minor updates merge on their own once all checks are
+green; major updates wait for the maintainer.
