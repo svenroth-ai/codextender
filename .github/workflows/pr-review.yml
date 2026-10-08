@@ -7,8 +7,8 @@ name: PR Review
 # read as text through the API.
 #
 #   Dependabot PRs      reviewed by a model (.github/scripts/pr_review.py)
-#   Maintainer PRs      status set to success, no model review
-#   Anyone else         status set to failure; the maintainer reviews by hand
+#   Same-repo PRs       (write access required) success, no model review
+#   Fork PRs            status set to failure; the maintainer reviews by hand
 #
 # A missing secret or any error ends in failure, never in success.
 
@@ -43,7 +43,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
-          ASSOCIATION: ${{ github.event.pull_request.author_association }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           set -uo pipefail
@@ -58,7 +57,8 @@ jobs:
               post failure "$out"
               exit 1
             fi
-          elif [ "$ASSOCIATION" = "OWNER" ] && [ "$HEAD_REPO" = "$REPO" ]; then
+          elif [ "$HEAD_REPO" = "$REPO" ]; then
+            # A branch in this repo can only be pushed by someone with write access.
             post success "Maintainer PR, no model review"
           else
             post failure "External PR, maintainer review required"
