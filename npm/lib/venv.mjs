@@ -31,6 +31,7 @@ export function venvCodextender() {
 /** @returns {{ ok: true } | { ok: false, error: string }} */
 export function ensureVenv(pythonCmd) {
   if (existsSync(venvPython())) return { ok: true };
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process -- interpreter found by us, fixed args, no shell
   const res = spawnSync(pythonCmd, ["-m", "venv", VENV_DIR], { shell: false, stdio: "inherit" });
   if (res.error || res.status !== 0) {
     return { ok: false, error: `failed to create venv at ${VENV_DIR}` };

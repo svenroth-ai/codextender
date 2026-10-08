@@ -148,6 +148,7 @@ def _refresh_loop(interval_seconds: float) -> None:
             # Expected operational failures (codex not on PATH, app-server
             # unreachable/misbehaving, malformed JSON) — worth a warning,
             # not a full traceback every cycle.
+            # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure -- logs the failure reason, never the token
             logger.warning("token refresh failed (%s) — will retry", exc)
         except Exception:
             # Anything else is unexpected and worth the full traceback.

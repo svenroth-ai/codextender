@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 const CANDIDATES = process.platform === "win32" ? ["python", "python3"] : ["python3", "python"];
 
 function versionOf(cmd) {
+  // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process -- fixed command and args, no shell
   const res = spawnSync(cmd, ["--version"], { shell: false, encoding: "utf8" });
   if (res.error || res.status !== 0) return null;
   const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
