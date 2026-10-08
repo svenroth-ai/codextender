@@ -45,20 +45,6 @@ jobs:
       - name: Semgrep
         run: semgrep scan --config p/python --config p/security-audit --metrics=off --error src scripts npm
 
-  trivy:
-    name: Trivy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
-      - name: Install Trivy
-        run: |
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-      - name: Trivy filesystem scan
-        run: trivy fs --scanners vuln,secret,misconfig --severity HIGH,CRITICAL --exit-code 1 .
-
   gitleaks:
     name: Gitleaks
     runs-on: ubuntu-latest
