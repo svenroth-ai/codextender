@@ -25,7 +25,7 @@ dependencies = [
     # only shows up against Codex's non-standard Responses API dialect.
     # A LiteLLM upgrade could silently change or remove that class, see
     # src/codextender/patch.py for the guarded-import fallback behavior.
-    "litellm[proxy]==1.103.1",
+    "litellm[proxy]==1.106.6",
     "pyyaml>=6.0",
 ]
 

@@ -24,7 +24,7 @@ see README.md for the walkthrough. In particular:
   gated by auto mode's classifier (e.g. Bash), not just the classifier
   request itself.
 - `max_input_tokens` is declared explicitly per model (see `model_info`
-  below) rather than left to LiteLLM's own cost-map value. LiteLLM 1.103.1's
+  below) rather than left to LiteLLM's own cost-map value. LiteLLM 1.106.6's
   bundled cost map reports 922000 for the bare "gpt-5.6-sol" and
   "chatgpt/gpt-6.1-sol" entries, while its other channel entries for this
   model family (e.g. "chatgpt/gpt-5.6-sol") report 1050000, which is what

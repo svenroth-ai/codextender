@@ -149,13 +149,13 @@ def _patch_stop_reason() -> bool:
     own stop_reason inference misses tool calls).
     """
     try:
-        from litellm.llms.anthropic.experimental_pass_through.responses_adapters import (
+        from litellm.llms.anthropic.pass_through.responses_adapters import (
             streaming_iterator as mod,
         )
     except ImportError:
         logger.error(
             "codextender: could not import LiteLLM's AnthropicResponsesStreamWrapper "
-            "module. Is litellm==1.103.1 installed? (pip show litellm)"
+            "module. Is litellm==1.106.6 installed? (pip show litellm)"
         )
         return False
 
@@ -204,13 +204,13 @@ def _patch_system_role_items() -> bool:
     instead of reimplementing the translator's cache-breakpoint logic.
     """
     try:
-        from litellm.llms.anthropic.experimental_pass_through.responses_adapters import (
+        from litellm.llms.anthropic.pass_through.responses_adapters import (
             transformation as mod,
         )
     except ImportError:
         logger.error(
             "codextender: could not import LiteLLM's Anthropic->Responses "
-            "transformation module. Is litellm==1.103.1 installed?"
+            "transformation module. Is litellm==1.106.6 installed?"
         )
         return False
 
@@ -271,13 +271,13 @@ def _patch_force_streaming() -> bool:
         message_stop).
     """
     try:
-        from litellm.llms.anthropic.experimental_pass_through.responses_adapters import (
+        from litellm.llms.anthropic.pass_through.responses_adapters import (
             handler as mod,
         )
     except ImportError:
         logger.error(
             "codextender: could not import LiteLLM's Anthropic->Responses "
-            "handler module. Is litellm==1.103.1 installed?"
+            "handler module. Is litellm==1.106.6 installed?"
         )
         return False
 
