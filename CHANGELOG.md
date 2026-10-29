@@ -4,6 +4,23 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-10-29
+
+### Changed
+
+- LiteLLM is updated from 1.102.0 to 1.106.6, which fixes CVE-2026-114612.
+  LiteLLM moved the Anthropic Responses adapters to a new module path; the
+  patches follow it. Behavior is unchanged, checked against the real Codex
+  endpoint with `gpt-6.1-sol` and `gpt-6.1-terra`.
+- The README links to the contributing guide, the security policy and the
+  changelog.
+
+### Security
+
+- The dependency audit ignores 13 `filelock` advisories that cannot be fixed
+  while LiteLLM caps `filelock` below 4.0. The list is removed once LiteLLM
+  lifts the cap.
+
 ## [0.2.0] - 2026-10-08
 
 ### Added
