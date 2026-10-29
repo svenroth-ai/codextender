@@ -155,7 +155,7 @@ def _patch_stop_reason() -> bool:
     except ImportError:
         logger.error(
             "codextender: could not import LiteLLM's AnthropicResponsesStreamWrapper "
-            "module. Is litellm==1.102.0 installed? (pip show litellm)"
+            "module. Is litellm==1.103.1 installed? (pip show litellm)"
         )
         return False
 
@@ -210,7 +210,7 @@ def _patch_system_role_items() -> bool:
     except ImportError:
         logger.error(
             "codextender: could not import LiteLLM's Anthropic->Responses "
-            "transformation module. Is litellm==1.102.0 installed?"
+            "transformation module. Is litellm==1.103.1 installed?"
         )
         return False
 
@@ -277,7 +277,7 @@ def _patch_force_streaming() -> bool:
     except ImportError:
         logger.error(
             "codextender: could not import LiteLLM's Anthropic->Responses "
-            "handler module. Is litellm==1.102.0 installed?"
+            "handler module. Is litellm==1.103.1 installed?"
         )
         return False
 

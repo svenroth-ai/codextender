@@ -24,14 +24,12 @@ see README.md for the walkthrough. In particular:
   gated by auto mode's classifier (e.g. Bash), not just the classifier
   request itself.
 - `max_input_tokens` is declared explicitly per model (see `model_info`
-  below) rather than left to LiteLLM's own cost-map guess. LiteLLM 1.102.0
-  doesn't know the "gpt-6-sol" / "gpt-5.6-sol" slugs at all and falls back
-  to fuzzy-matching unrelated entries in its bundled cost map, landing on
-  922000 for these models — the same map's `chatgpt/`-prefixed and other
-  non-Azure channel entries for this model family consistently report
-  1050000 instead, which is what every consumer of this proxy's `/v1/models`
-  (e.g. Claude Code's context-window sizing, downstream launchers) should
-  see instead of LiteLLM's guess.
+  below) rather than left to LiteLLM's own cost-map value. LiteLLM 1.103.1's
+  bundled cost map reports 922000 for the bare "gpt-5.6-sol" and
+  "chatgpt/gpt-6.1-sol" entries, while its other channel entries for this
+  model family (e.g. "chatgpt/gpt-5.6-sol") report 1050000, which is what
+  every consumer of this proxy's `/v1/models` (e.g. Claude Code's
+  context-window sizing, downstream launchers) should see.
 
 Multi-model note: a single running proxy can expose more than one Codex
 model alias at once (e.g. `sol` and `astra` simultaneously) — each
