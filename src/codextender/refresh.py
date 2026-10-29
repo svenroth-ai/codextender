@@ -28,7 +28,7 @@ Codex — see the codextender repo's test history for both runs): (1)
 option, since ``add_deployment``'s own docstring says it "initialize[s the]
 client"), and (2) this plain mutation. **Both produced the new token on the
 very next outbound request** — an independent read of the installed
-litellm==1.102.0 source (the version this project pins) confirmed why: each
+litellm==1.106.6 source (the version this project pins) confirmed why: each
 deployment's api_key is read fresh out of ``litellm_params`` per request
 (``Router._acompletion``/``_ageneric_api_call_with_fallbacks_helper`` both
 do a shallow ``.copy()`` of ``litellm_params`` at call time), and the one
