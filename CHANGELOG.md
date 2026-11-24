@@ -4,6 +4,14 @@ All notable changes are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-24
+
+### Changed
+
+- The default model is `gpt-6.2-sol`. Pass `--model gpt-6.1-sol:sol` to keep
+  using the previous one.
+- The README and installer examples use `gpt-6.2-astra`.
+
 ## [0.3.0] - 2026-10-29
 
 ### Changed
